@@ -1,0 +1,21 @@
+services:
+  codex:
+    build: .
+    stdin_open: true
+    tty: true
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${SSH_PORT:-2222}:22"
+      - "60000-60010:60000-60010/udp"
+    volumes:
+      - ./files:/files
+      - codex-home:/root
+    environment:
+      - USER_PASSWORD=${USER_PASSWORD:-changeme}
+      - TZ=${TZ:-America/Los_Angeles}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
+
+volumes:
+  codex-home:
