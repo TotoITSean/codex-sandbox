@@ -127,15 +127,6 @@ SETUP
 chmod +x /opt/codex-setup.sh
 EOF
 
-# ---------- Supervisord config (background services only) ----------
-RUN <<'EOF'
-cat > /etc/supervisor/conf.d/services.conf <<'CONF'
-[program:sshd]
-command=/usr/sbin/sshd -D
-autorestart=true
-CONF
-EOF
-
 # ---------- Entrypoint ----------
 RUN <<'EOF'
 cat > /opt/codex-entrypoint.sh <<'ENTRY'
@@ -144,6 +135,15 @@ set -e
 
 # Run container setup
 /opt/codex-setup.sh
+
+# Ensure sshd supervisor config exists (don't overwrite user-added services)
+if [ ! -f /etc/supervisor/conf.d/sshd.conf ]; then
+  cat > /etc/supervisor/conf.d/sshd.conf <<'SSHD'
+[program:sshd]
+command=/usr/sbin/sshd -D
+autorestart=true
+SSHD
+fi
 
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
