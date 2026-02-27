@@ -35,7 +35,7 @@ It's usually under **Advanced**, **CPU Configuration**, **Security**, or **Tweak
 Already have Docker Desktop? Skip ahead.
 
 ```
-install-docker.bat        # right-click → Run as administrator
+docker-install.bat        # right-click → Run as administrator
 ```
 
 Restart your machine after install, then launch **Docker Desktop** once so it finishes setup.
@@ -59,6 +59,8 @@ Open `.env` in any text editor. Here's what each setting does:
 | `HTTP_PORT` | `8080` | Host port mapped to the container's port 8080. |
 | `HTTPS_PORT` | `4430` | Host port mapped to the container's port 4430. |
 | `SSH_PORT` | `2222` | Host port for SSH access (mapped to container port 22). |
+| `GIT_USER` | `codex` | Git commit author name. |
+| `GIT_EMAIL` | `codex@` | Git commit author email. |
 
 Common timezone values for *TZ*
 
@@ -77,7 +79,7 @@ Common timezone values for *TZ*
 ## 3 — Run
 
 ```
-start.bat
+codex.bat
 ```
 
 > **Heads up:** The first build pulls and installs everything (.NET SDK, FFmpeg, ImageMagick, etc.). Expect it to take several minutes. Subsequent runs start in seconds.
@@ -119,9 +121,9 @@ That's it — you're up and running.
 
 ## Startup Failures
 
-If Codex fails to start, `start.bat` will offer to run `docker-cleanup.bat` and retry automatically.
+If Codex fails to start, `codex.bat` will offer to run `docker-clean.bat` and retry automatically.
 
-You can also run `docker-cleanup.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
+You can also run `docker-clean.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
 
 > **Warning:** Cleanup will stop all running Codex containers and interrupt any active sessions.
 

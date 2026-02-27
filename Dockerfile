@@ -88,6 +88,10 @@ TZ="${TZ:-America/Los_Angeles}"
 ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 echo "$TZ" > /etc/timezone
 
+# --- Git config ---
+git config --global user.name "${GIT_USER:-codex}"
+git config --global user.email "${GIT_EMAIL:-codex@}"
+
 # --- Tmux config (only write if not already customised) ---
 if [ ! -f "$HOME/.tmux.conf" ]; then
   cat > "$HOME/.tmux.conf" <<'TMUX'
@@ -114,6 +118,11 @@ Mapped ports: HTTP `8080`, HTTPS `4430`.
 
 When installing services or daemons, add a .conf file in /etc/supervisor/conf.d/
 and run `supervisorctl reread && supervisorctl update` to start them.
+
+## Git
+
+Git user and email are configured via GIT_USER and GIT_EMAIL environment
+variables (set in .env on the host).
 
 ## Available tools
 

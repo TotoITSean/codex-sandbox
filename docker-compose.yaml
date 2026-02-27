@@ -17,6 +17,8 @@ services:
       - TZ=${TZ:-America/Los_Angeles}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
+      - GIT_USER=${GIT_USER:-codex}
+      - GIT_EMAIL=${GIT_EMAIL:-codex@}
 
 volumes:
   codex-home:
