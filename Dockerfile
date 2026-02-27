@@ -154,10 +154,13 @@ autorestart=true
 SSHD
 fi
 
+# Clean stale supervisor socket
+rm -f /var/run/supervisor.sock
+
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
 
-# Launch Codex in foreground with TTY
+# Launch Codex — exec replaces shell as PID 1, container stops when codex exits
 exec codex --dangerously-bypass-approvals-and-sandbox "$@"
 ENTRY
 chmod +x /opt/codex-entrypoint.sh
