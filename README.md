@@ -124,7 +124,7 @@ That's it — you're up and running.
 To pick up Dockerfile changes (new tools, updated plugins, etc.), run:
 
 ```
-upgrade_and_reset.bat
+upgrade.bat
 ```
 
 This removes the existing container and rebuilds the image from scratch with `--no-cache`. Your `/files` folder and `/root` home volume are **not** affected — only the container image is replaced. Run `codex.bat` afterwards to start fresh.
