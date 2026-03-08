@@ -1,4 +1,17 @@
 # syntax=docker/dockerfile:1.7
+#
+# Kata Container (Firecracker) variant
+# ─────────────────────────────────────
+# This image is designed to run inside a Firecracker microVM via Kata Containers.
+# The Dockerfile is largely identical to the standard one; the real difference is
+# the *runtime* (kata-fc) specified in docker-compose.kata.yaml.
+#
+# Key Kata/Firecracker considerations baked in:
+#   - virtio-fs for shared /files mount (faster than 9p in Kata 3.x+)
+#   - No --privileged needed — Kata already provides VM-level isolation
+#   - Memory-conscious: Firecracker microVMs have a fixed memory ceiling
+#   - Clean shutdown via SIGTERM handling (Firecracker expects clean exits)
+
 FROM node:22-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -93,6 +106,10 @@ TZ="${TZ:-America/Los_Angeles}"
 ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 echo "$TZ" > /etc/timezone
 
+# --- Git config ---
+git config --global user.name "${GIT_USER:-codex}"
+git config --global user.email "${GIT_EMAIL:-codex@}"
+
 # --- Tmux config (only write if not already customised) ---
 if [ ! -f "$HOME/.tmux.conf" ]; then
   cat > "$HOME/.tmux.conf" <<'TMUX'
@@ -107,12 +124,14 @@ mkdir -p "$HOME/.codex"
 cat > "$HOME/.codex/AGENTS.md" <<'AGENTS'
 # Environment
 
-You are running inside a Docker container (Debian-based, node:22-slim).
+You are running inside a Kata Container (Firecracker microVM).
+The container runs in a lightweight VM for hardware-level isolation.
 supervisord manages services — config in /etc/supervisor/conf.d/.
 
 ## Networking
 
-Docker container — ALWAYS bind to `0.0.0.0`, NEVER `localhost`/`127.0.0.1`.
+Kata microVM — ALWAYS bind to `0.0.0.0`, NEVER `localhost`/`127.0.0.1`.
+Traffic is bridged through the Firecracker TAP device to the host.
 Mapped ports: HTTP `8080`, HTTPS `4430`.
 
 ## Services
@@ -120,13 +139,25 @@ Mapped ports: HTTP `8080`, HTTPS `4430`.
 When installing services or daemons, add a .conf file in /etc/supervisor/conf.d/
 and run `supervisorctl reread && supervisorctl update` to start them.
 
+## Git
+
+Git user and email are configured via GIT_USER and GIT_EMAIL environment
+variables (set in .env on the host).
+
 ## Available tools
 
 git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano
 
 ## Working directory
 
-`/files` — this directory is shared with the host machine.
+`/files` — this directory is shared with the host via virtio-fs.
+
+## Kata/Firecracker notes
+
+- You are inside a microVM, not a plain container. You have a real Linux kernel.
+- /proc, /sys, /dev are real (not namespaced) — you can inspect hardware.
+- Memory is capped by the microVM config (default 4096 MB). Monitor with `free -h`.
+- If you need more memory, ask the user to increase `default_memory` in kata config.
 AGENTS
 
 # --- Enable multi-agent feature ---
@@ -138,35 +169,46 @@ SETUP
 chmod +x /opt/codex-setup.sh
 EOF
 
-# ---------- Supervisord config (background services only) ----------
-RUN <<'EOF'
-cat > /etc/supervisor/conf.d/services.conf <<'CONF'
-[supervisord]
-nodaemon=false
-
-[program:sshd]
-command=/usr/sbin/sshd -D
-autostart=true
-autorestart=true
-CONF
-EOF
-
 # ---------- Entrypoint ----------
 RUN <<'EOF'
 cat > /opt/codex-entrypoint.sh <<'ENTRY'
 #!/usr/bin/env bash
 set -e
 
+# Trap SIGTERM for clean Firecracker shutdown
+cleanup() {
+    echo "Shutting down..."
+    supervisorctl stop all 2>/dev/null || true
+    kill -- -$$ 2>/dev/null || true
+    exit 0
+}
+trap cleanup SIGTERM SIGINT
+
 # Run container setup
 /opt/codex-setup.sh
+
+# Ensure sshd supervisor config exists (don't overwrite user-added services)
+if [ ! -f /etc/supervisor/conf.d/sshd.conf ]; then
+  cat > /etc/supervisor/conf.d/sshd.conf <<'SSHD'
+[program:sshd]
+command=/usr/sbin/sshd -D
+autorestart=true
+SSHD
+fi
+
+# Clean stale supervisor socket
+rm -f /var/run/supervisor.sock
 
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
 
+# Update Codex CLI to latest
+npm update -g @openai/codex 2>/dev/null
+
 # Update superpowers plugin
 (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
 
-# Launch Codex in foreground with TTY
+# Launch Codex — exec replaces shell as PID 1, container stops when codex exits
 exec codex --dangerously-bypass-approvals-and-sandbox "$@"
 ENTRY
 chmod +x /opt/codex-entrypoint.sh

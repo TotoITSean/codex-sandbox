@@ -1,4 +1,11 @@
 # syntax=docker/dockerfile:1.7
+#
+# gVisor (runsc) variant
+# ──────────────────────
+# Runs inside gVisor's user-space kernel for sandbox isolation.
+# Works on Docker Desktop (Windows/Mac) — no KVM required.
+# No --privileged needed.
+
 FROM node:22-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -45,12 +52,18 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsof
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- Codex CLI ----------
-RUN npm install -g @openai/codex playwright && npx playwright install --with-deps
+RUN npm install -g @openai/codex
 
 # ---------- Superpowers plugin ----------
 RUN git clone https://github.com/obra/superpowers.git /root/.codex/superpowers \
     && mkdir -p /root/.agents/skills \
     && ln -s /root/.codex/superpowers/skills /root/.agents/skills/superpowers
+
+# ---------- Playwright (optional — may not work under gVisor) ----------
+# gVisor doesn't support all syscalls Chromium needs. Install the browsers
+# but they may fail at runtime. Remove this block if you don't need Playwright.
+RUN npm install -g playwright \
+    && npx playwright install --with-deps 2>/dev/null || true
 
 # ---------- Sudo for all users ----------
 RUN echo 'ALL ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/nopasswd \
@@ -93,6 +106,10 @@ TZ="${TZ:-America/Los_Angeles}"
 ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
 echo "$TZ" > /etc/timezone
 
+# --- Git config ---
+git config --global user.name "${GIT_USER:-codex}"
+git config --global user.email "${GIT_EMAIL:-codex@}"
+
 # --- Tmux config (only write if not already customised) ---
 if [ ! -f "$HOME/.tmux.conf" ]; then
   cat > "$HOME/.tmux.conf" <<'TMUX'
@@ -107,7 +124,8 @@ mkdir -p "$HOME/.codex"
 cat > "$HOME/.codex/AGENTS.md" <<'AGENTS'
 # Environment
 
-You are running inside a Docker container (Debian-based, node:22-slim).
+You are running inside a Docker container with gVisor (runsc) sandboxing.
+gVisor provides a user-space kernel that intercepts syscalls for isolation.
 supervisord manages services — config in /etc/supervisor/conf.d/.
 
 ## Networking
@@ -120,13 +138,27 @@ Mapped ports: HTTP `8080`, HTTPS `4430`.
 When installing services or daemons, add a .conf file in /etc/supervisor/conf.d/
 and run `supervisorctl reread && supervisorctl update` to start them.
 
+## Git
+
+Git user and email are configured via GIT_USER and GIT_EMAIL environment
+variables (set in .env on the host).
+
 ## Available tools
 
-git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano
+git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, tmux, nano
 
 ## Working directory
 
 `/files` — this directory is shared with the host machine.
+
+## gVisor notes
+
+- Syscalls are intercepted by gVisor's Sentry (user-space kernel).
+- /proc and /sys are emulated — not all entries exist.
+- Playwright/Chromium may not work (unsupported syscalls). Use other HTTP
+  testing tools (curl, wget, node fetch) instead.
+- Raw socket operations are limited. Most TCP/UDP networking works fine.
+- If something fails with ENOSYS or EPERM, it's likely an unsupported syscall.
 AGENTS
 
 # --- Enable multi-agent feature ---
@@ -138,19 +170,6 @@ SETUP
 chmod +x /opt/codex-setup.sh
 EOF
 
-# ---------- Supervisord config (background services only) ----------
-RUN <<'EOF'
-cat > /etc/supervisor/conf.d/services.conf <<'CONF'
-[supervisord]
-nodaemon=false
-
-[program:sshd]
-command=/usr/sbin/sshd -D
-autostart=true
-autorestart=true
-CONF
-EOF
-
 # ---------- Entrypoint ----------
 RUN <<'EOF'
 cat > /opt/codex-entrypoint.sh <<'ENTRY'
@@ -160,13 +179,28 @@ set -e
 # Run container setup
 /opt/codex-setup.sh
 
+# Ensure sshd supervisor config exists (don't overwrite user-added services)
+if [ ! -f /etc/supervisor/conf.d/sshd.conf ]; then
+  cat > /etc/supervisor/conf.d/sshd.conf <<'SSHD'
+[program:sshd]
+command=/usr/sbin/sshd -D
+autorestart=true
+SSHD
+fi
+
+# Clean stale supervisor socket
+rm -f /var/run/supervisor.sock
+
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+
+# Update Codex CLI to latest
+npm update -g @openai/codex 2>/dev/null
 
 # Update superpowers plugin
 (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
 
-# Launch Codex in foreground with TTY
+# Launch Codex — exec replaces shell as PID 1, container stops when codex exits
 exec codex --dangerously-bypass-approvals-and-sandbox "$@"
 ENTRY
 chmod +x /opt/codex-entrypoint.sh
