@@ -46,6 +46,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsof
 
 # ---------- Codex CLI ----------
 RUN npm install -g @openai/codex @th0rgal/ralph-wiggum playwright && npx playwright install --with-deps
+ENV NODE_PATH=/usr/local/lib/node_modules
 
 # ---------- Sudo for all users ----------
 RUN echo 'ALL ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/nopasswd \
