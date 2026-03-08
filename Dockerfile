@@ -47,11 +47,6 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsof
 # ---------- Codex CLI ----------
 RUN npm install -g @openai/codex playwright && npx playwright install --with-deps
 
-# ---------- Superpowers plugin ----------
-RUN git clone https://github.com/obra/superpowers.git /root/.codex/superpowers \
-    && mkdir -p /root/.agents/skills \
-    && ln -s /root/.codex/superpowers/skills /root/.agents/skills/superpowers
-
 # ---------- Sudo for all users ----------
 RUN echo 'ALL ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/nopasswd \
     && chmod 0440 /etc/sudoers.d/nopasswd
@@ -163,8 +158,14 @@ set -e
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
 
-# Update superpowers plugin
-(cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
+# Install or update superpowers plugin
+if [ -d "$HOME/.codex/superpowers/.git" ]; then
+  (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
+else
+  git clone https://github.com/obra/superpowers.git "$HOME/.codex/superpowers" 2>/dev/null || true
+fi
+mkdir -p "$HOME/.agents/skills"
+ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
 
 # Launch Codex in foreground with TTY
 exec codex --dangerously-bypass-approvals-and-sandbox "$@"

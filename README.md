@@ -77,10 +77,12 @@ Common timezone values for *TZ*
 ## 3 — Run
 
 ```
-start.bat
+codex.bat
 ```
 
 > **Heads up:** The first build pulls and installs everything (.NET SDK, FFmpeg, ImageMagick, etc.). Expect it to take several minutes. Subsequent runs start in seconds.
+
+The container is **persistent** — when you exit Codex, the container stops but is not removed. The next time you run `codex.bat`, it restarts the same container with all your installed packages, shell history, and login credentials intact. Only the `/files` folder and `/root` home directory are preserved across full rebuilds (via Docker volumes).
 
 ## 4 — First-Time Login
 
@@ -117,9 +119,19 @@ That's it — you're up and running.
 
 # Troubleshooting
 
+## Upgrading
+
+To pick up Dockerfile changes (new tools, updated plugins, etc.), run:
+
+```
+upgrade_and_reset.bat
+```
+
+This removes the existing container and rebuilds the image from scratch with `--no-cache`. Your `/files` folder and `/root` home volume are **not** affected — only the container image is replaced. Run `codex.bat` afterwards to start fresh.
+
 ## Startup Failures
 
-If Codex fails to start, `start.bat` will offer to run `docker-cleanup.bat` and retry automatically.
+If Codex fails to start, `codex.bat` will offer to run `docker-cleanup.bat` and retry automatically.
 
 You can also run `docker-cleanup.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
 
@@ -130,6 +142,24 @@ You can also run `docker-cleanup.bat` directly at any time — it shuts down con
 # Advanced (Optional)
 
 Everything below is optional. Codex works fine without any of it.
+
+---
+
+## Plugins
+
+The [Superpowers](https://github.com/obra/superpowers) plugin is installed automatically on first launch and updated via `git pull` on every subsequent start. It adds skills like brainstorming, systematic debugging, test-driven development, and code review workflows to Codex.
+
+The multi-agent feature flag is also enabled by default (`~/.codex/config.toml`).
+
+No action needed — this is all handled by the entrypoint script.
+
+---
+
+## Web Server Access
+
+Ports `8080` (HTTP) and `4430` (HTTPS) are mapped from the container to your host. When Codex spins up a dev server or you ask it to serve a site, bind to `0.0.0.0` inside the container and access it from your browser at `http://localhost:8080` (or the port you configured in `.env`).
+
+This is useful for previewing websites, testing APIs, or running any web application Codex builds for you.
 
 ---
 
