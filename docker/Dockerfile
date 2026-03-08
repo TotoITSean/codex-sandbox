@@ -45,7 +45,7 @@ RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsof
     && rm -rf /var/lib/apt/lists/*
 
 # ---------- Codex CLI ----------
-RUN npm install -g @openai/codex playwright && npx playwright install --with-deps
+RUN npm install -g @openai/codex @th0rgal/ralph-wiggum playwright && npx playwright install --with-deps
 
 # ---------- Sudo for all users ----------
 RUN echo 'ALL ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/nopasswd \
@@ -117,7 +117,7 @@ and run `supervisorctl reread && supervisorctl update` to start them.
 
 ## Available tools
 
-git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano
+git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano, ralph (wiggum loop)
 
 ## Working directory
 
@@ -161,6 +161,9 @@ set -e
 
 # Start supervisord for background services (sshd, etc.)
 /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+
+# Update Codex CLI and ralph-wiggum to latest
+npm update -g @openai/codex @th0rgal/ralph-wiggum 2>/dev/null || true
 
 # Install or update superpowers plugin
 if [ -d "$HOME/.codex/superpowers/.git" ]; then
