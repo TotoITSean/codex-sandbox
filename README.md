@@ -112,6 +112,7 @@ Use this as your workspace — projects, scripts, data files all go here.
 | `/init` | Setup codex for the project in /files |
 | `/resume` | Reopens a previous session. You'll see a list of past conversations — pick one and Codex reloads the full history so you can continue right where you left off. |
 | `/plan` | Begin a task with a plan |
+| `/status` | Shows your current API usage and rate limits. |
 
 That's it — you're up and running.
 
