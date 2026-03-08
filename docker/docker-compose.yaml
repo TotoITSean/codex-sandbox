@@ -19,6 +19,7 @@ services:
       - TZ=${TZ:-America/Los_Angeles}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
+    env_file: ../settings.txt
 
 volumes:
   codex-home:

@@ -5,12 +5,12 @@ USER_PASSWORD=changeme
 TZ=America/Los_Angeles
 
 # OpenAI API key for Codex
-OPENAI_API_KEY=sk-your-key-here
+OPENAI_API_KEY=
 
 # OpenAI OAuth token for Codex login (e.g. from `codex login`)
 OPENAI_OAUTH_TOKEN=
 
 # Port configuration
-HTTP_PORT=80
-HTTPS_PORT=443
+HTTP_PORT=8080
+HTTPS_PORT=4430
 SSH_PORT=2222
