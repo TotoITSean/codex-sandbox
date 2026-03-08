@@ -149,7 +149,7 @@ Everything below is optional. Codex works fine without any of it.
 
 The [Superpowers](https://github.com/obra/superpowers) plugin is installed automatically on first launch and updated via `git pull` on every subsequent start. It adds skills like brainstorming, systematic debugging, test-driven development, and code review workflows to Codex.
 
-The multi-agent feature flag is also enabled by default (`~/.codex/config.toml`).
+The multi-agent feature flag is also enabled by default (`~/.codex/config.toml`), allowing Codex to spin up multiple parallel agents that work on different parts of a task simultaneously — significantly speeding up complex, multi-step work.
 
 No action needed — this is all handled by the entrypoint script.
 
