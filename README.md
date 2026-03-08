@@ -91,11 +91,11 @@ On first launch Codex will prompt you to authenticate:
 ```
 ? How would you like to authenticate?
   1. Sign in with ChatGPT
-▸ 2. 
+▸ 2. Sign in with Device Code
   3. Use an API key
 ```
 
-**Choose option 2** and paste your OpenAI API key.
+**Choose option 2** (device code), open the link in a browser, log in to ChatGPT, and enter the code provided (you can ctrl+click the link)
 Your credentials are cached inside the persistent home volume — you won't be asked again.
 
 ## 5 — The `files` Folder
