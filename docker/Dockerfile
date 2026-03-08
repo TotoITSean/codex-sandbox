@@ -62,6 +62,11 @@ RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && locale-gen
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
+# ---------- Force 0.0.0.0 binding for common frameworks ----------
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+ENV HOST=0.0.0.0
+ENV HOSTNAME=0.0.0.0
+
 # ---------- OSC 52 clipboard shim ----------
 RUN <<'EOF'
 cat > /usr/local/bin/xclip <<'SHIM'
