@@ -124,12 +124,14 @@ git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, 
 `/files` — this directory is shared with the host machine.
 AGENTS
 
-# --- Enable multi-agent feature (only if config doesn't exist yet) ---
+# --- Enable multi-agent feature ---
 if [ ! -f "$HOME/.codex/config.toml" ]; then
   cat > "$HOME/.codex/config.toml" <<'TOML'
 [features]
 multi_agent = true
 TOML
+elif ! grep -q 'multi_agent' "$HOME/.codex/config.toml"; then
+  printf '\n[features]\nmulti_agent = true\n' >> "$HOME/.codex/config.toml"
 fi
 SETUP
 chmod +x /opt/codex-setup.sh
