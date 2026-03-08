@@ -1,5 +1,18 @@
 @echo off
 
+REM Check if Docker is installed
+where docker > NUL 2>&1
+if %errorlevel% neq 0 (
+    echo Docker is not installed. Running install script as administrator...
+    echo.
+    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~dp0install-docker.bat\"' -Verb RunAs -Wait"
+    echo.
+    echo Docker installed. Please restart your computer, then run this script again.
+    echo.
+    pause
+    goto :eof
+)
+
 REM Check if Docker is running
 docker info > NUL 2>&1
 if %errorlevel% neq 0 (

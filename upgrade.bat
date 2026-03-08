@@ -5,3 +5,5 @@ echo Rebuilding image (no cache)...
 docker-compose build --pull --no-cache
 echo.
 echo Done. Run codex.bat to start fresh.
+echo.
+pause
