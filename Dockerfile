@@ -130,8 +130,12 @@ EOF
 # ---------- Supervisord config (background services only) ----------
 RUN <<'EOF'
 cat > /etc/supervisor/conf.d/services.conf <<'CONF'
+[supervisord]
+nodaemon=false
+
 [program:sshd]
 command=/usr/sbin/sshd -D
+autostart=true
 autorestart=true
 CONF
 EOF
