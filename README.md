@@ -45,10 +45,10 @@ Restart your machine after install, then launch **Docker Desktop** once so it fi
 Copy the sample environment file to create your own:
 
 ```
-copy .env.sample .env
+copy docker\.env.sample docker\.env
 ```
 
-Open `.env` in any text editor. Here's what each setting does:
+Open `docker\.env` in any text editor. Here's what each setting does:
 
 | Variable | Default | What it controls |
 |----------|---------|-----------------|
@@ -168,7 +168,7 @@ This is useful for previewing websites, testing APIs, or running any web applica
 
 An OpenSSH server starts automatically alongside Codex. This gives you a second way into the container — useful for running commands in parallel, editing files, or attaching to a tmux session while Codex is working.
 
-To enable it, uncomment the SSH port lines in `docker-compose.yaml`:
+To enable it, uncomment the SSH port lines in `docker/docker-compose.yaml`:
 
 ```yaml
 - "${SSH_PORT:-2222}:22"

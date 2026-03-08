@@ -1,0 +1,47 @@
+# docker-compose for Kata Containers with Firecracker
+#
+# Prerequisites:
+#   1. Linux host with KVM support (/dev/kvm must exist)
+#   2. Kata Containers installed with Firecracker VMM
+#   3. containerd configured with kata-fc runtime
+#   4. Run: ./kata-setup.sh  (to install everything)
+#
+# Usage:
+#   docker compose -f docker/docker-compose.kata.yaml up --build
+#   # or use the launch script:
+#   ./codex-kata.sh
+
+services:
+  codex:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.kata
+    runtime: kata-fc
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../files:/files
+      - codex-home:/root
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+      - "${HTTPS_PORT:-4430}:4430"
+      # Uncomment to enable SSH access (set a strong USER_PASSWORD first!)
+      # - "${SSH_PORT:-2222}:22"
+      # - "60000-60010:60000-60010/udp"
+    environment:
+      - USER_PASSWORD=${USER_PASSWORD:-changeme}
+      - TZ=${TZ:-America/Los_Angeles}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
+      - GIT_USER=${GIT_USER:-codex}
+      - GIT_EMAIL=${GIT_EMAIL:-codex@}
+    # Firecracker microVM resource limits
+    # These translate to the VM's hardware allocation, not cgroup limits
+    deploy:
+      resources:
+        limits:
+          memory: 4096M
+          cpus: "4"
+
+volumes:
+  codex-home:

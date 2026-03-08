@@ -31,7 +31,7 @@ set CONTAINER_NAME=codex
 
 echo Updating and building...
 echo.
-docker-compose build --pull > NUL
+docker-compose -f docker/docker-compose.yaml build --pull > NUL
 echo.
 
 REM Check if the container already exists (running or stopped)
@@ -43,7 +43,7 @@ if %errorlevel% equ 0 (
 ) else (
     echo Creating new container...
     echo.
-    docker-compose run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+    docker-compose -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
 )
 if %errorlevel% equ 0 goto :eof
 
@@ -58,8 +58,8 @@ call "%~dp0docker-cleanup.bat" -y
 echo.
 echo Retrying...
 echo.
-docker-compose build --pull > NUL
-docker-compose run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+docker-compose -f docker/docker-compose.yaml build --pull > NUL
+docker-compose -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
 if %errorlevel% equ 0 goto :eof
 
 echo.
