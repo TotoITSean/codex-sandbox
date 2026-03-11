@@ -130,14 +130,22 @@ git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, 
 `/files` — this directory is shared with the host machine.
 AGENTS
 
-# --- Enable multi-agent feature ---
+# --- Enable multi-agent feature and trust /files ---
 if [ ! -f "$HOME/.codex/config.toml" ]; then
   cat > "$HOME/.codex/config.toml" <<'TOML'
 [features]
 multi_agent = true
+
+[projects."/files"]
+trust_level = "trusted"
 TOML
-elif ! grep -q 'multi_agent' "$HOME/.codex/config.toml"; then
-  printf '\n[features]\nmulti_agent = true\n' >> "$HOME/.codex/config.toml"
+else
+  if ! grep -q 'multi_agent' "$HOME/.codex/config.toml"; then
+    printf '\n[features]\nmulti_agent = true\n' >> "$HOME/.codex/config.toml"
+  fi
+  if ! grep -q 'trust_level' "$HOME/.codex/config.toml"; then
+    printf '\n[projects."/files"]\ntrust_level = "trusted"\n' >> "$HOME/.codex/config.toml"
+  fi
 fi
 SETUP
 chmod +x /opt/codex-setup.sh
