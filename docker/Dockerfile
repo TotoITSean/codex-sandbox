@@ -67,15 +67,6 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV HOST=0.0.0.0
 ENV HOSTNAME=0.0.0.0
 
-# ---------- OSC 52 clipboard shim ----------
-RUN <<'EOF'
-cat > /usr/local/bin/xclip <<'SHIM'
-#!/usr/bin/env bash
-data=$(cat)
-printf '\e]52;c;%s\a' "$(echo -n "$data" | base64 -w0)"
-SHIM
-chmod +x /usr/local/bin/xclip
-EOF
 
 # ---------- Ports ----------
 EXPOSE 22 8080 4430 60000-61000/udp
