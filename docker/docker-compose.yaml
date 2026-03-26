@@ -5,6 +5,11 @@ services:
       dockerfile: docker/Dockerfile
     stdin_open: true
     tty: true
+    shm_size: '2gb'
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
     volumes:
       - ../files:/files
       - codex-home:/home/user

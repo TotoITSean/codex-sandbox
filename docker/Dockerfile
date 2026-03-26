@@ -157,11 +157,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         # Terminal and browser
         xfce4-terminal \
         firefox-esr \
+        # PulseAudio extras for XRDP sound
+        pulseaudio-utils \
+        alsa-utils \
         # Process management
         supervisor \
         dbus \
         openssl \
     && rm -rf /var/lib/apt/lists/*
+
+# ---------- Google Chrome ----------
+RUN curl -fsSL -o /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y /tmp/google-chrome.deb && \
+    rm -f /tmp/google-chrome.deb && \
+    rm -rf /var/lib/apt/lists/* && \
+    # Chrome needs --no-sandbox in containers; patch the desktop entry and binary wrapper
+    sed -i 's|/usr/bin/google-chrome-stable|/usr/bin/google-chrome-stable --no-sandbox|g' /usr/share/applications/google-chrome.desktop && \
+    mv /usr/bin/google-chrome-stable /usr/bin/google-chrome-stable.real && \
+    printf '#!/bin/bash\nexec /usr/bin/google-chrome-stable.real --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer --disable-setuid-sandbox "$@"\n' > /usr/bin/google-chrome-stable && \
+    chmod +x /usr/bin/google-chrome-stable
 
 # ---------- .NET SDK 10 ----------
 RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
@@ -182,7 +197,8 @@ RUN groupadd -g $PGID user 2>/dev/null || groupmod -n user $(getent group $PGID 
     useradd -g user -u $PUID -m -s /bin/bash user 2>/dev/null || usermod -l user -d /home/user -m $(getent passwd $PUID | cut -d: -f1) && \
     usermod -a -G sudo,audio,video user && \
     echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/user/.profile
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/user/.profile && \
+    echo 'cd /files' >> /home/user/.bashrc
 
 # ---------- SSH ----------
 RUN mkdir -p /run/sshd \
@@ -297,6 +313,22 @@ RUN sed -i \
 # Strip non-Xorg session types
 RUN sed -i '/^\[Xvnc\]/,$d' /etc/xrdp/xrdp.ini
 
+# Force xrdp and sesman to log to files only, not syslog/console
+RUN sed -i \
+    -e 's|^LogFile=.*|LogFile=/var/log/xrdp/xrdp.log|' \
+    -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
+    -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
+    -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
+    -e 's|^LogLevel=.*|LogLevel=WARNING|' \
+    /etc/xrdp/xrdp.ini && \
+    sed -i \
+    -e 's|^LogFile=.*|LogFile=/var/log/xrdp/sesman.log|' \
+    -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
+    -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
+    -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
+    -e 's|^LogLevel=.*|LogLevel=WARNING|' \
+    /etc/xrdp/sesman.ini
+
 # Set XRDP_SOCKET_PATH for PulseAudio xrdp modules (UID 1000 = user)
 RUN sed -i '/^\[SessionVariables\]/a XRDP_SOCKET_PATH=/run/xrdp/1000' /etc/xrdp/sesman.ini
 
@@ -328,8 +360,13 @@ RUN printf '%s\n' \
 '# Start PulseAudio with xrdp sink/source for audio redirection' \
 'export XRDP_SOCKET_PATH=/run/xrdp/$(id -u)' \
 'export PULSE_RUNTIME_PATH=/run/user/$(id -u)/pulse' \
-'mkdir -p "$PULSE_RUNTIME_PATH"' \
-'pulseaudio --daemonize=yes 2>/dev/null' \
+'export XDG_RUNTIME_DIR=/run/user/$(id -u)' \
+'mkdir -p "$XDG_RUNTIME_DIR" "$PULSE_RUNTIME_PATH"' \
+'chmod 700 "$XDG_RUNTIME_DIR"' \
+'# Kill any existing PulseAudio and start fresh' \
+'pulseaudio --kill 2>/dev/null || true' \
+'sleep 0.5' \
+'pulseaudio --start --log-target=syslog 2>/dev/null' \
 '' \
 'exec dbus-launch --exit-with-session cinnamon-session' \
 > /etc/xrdp/startwm.sh && chmod +x /etc/xrdp/startwm.sh
@@ -337,9 +374,9 @@ RUN printf '%s\n' \
 # Disable PulseAudio realtime scheduling and auto-exit
 RUN printf '\n%s\n' 'realtime-scheduling = no' 'high-priority = no' 'exit-idle-time = -1' >> /etc/pulse/daemon.conf
 
-# PulseAudio config for XRDP audio redirection
-RUN mkdir -p /home/user/.config/pulse && \
-    printf '%s\n' \
+# PulseAudio system-wide config for XRDP audio redirection
+# Uses /etc/pulse/default.pa (system-wide) so it survives /home/user volume mount
+RUN printf '%s\n' \
 '#!/usr/bin/pulseaudio -nF' \
 '' \
 'load-module module-augment-properties' \
@@ -360,14 +397,17 @@ RUN mkdir -p /home/user/.config/pulse && \
 '' \
 'load-module module-native-protocol-tcp auth-ip-acl=127.0.0.1' \
 'load-module module-switch-on-connect' \
-> /home/user/.config/pulse/default.pa && \
-    chown -R user:user /home/user/.config
+> /etc/pulse/default.pa
 
-# System-wide DPI default (175% = 168 DPI)
+# System-wide DPI default (96 = native, let RDP client handle scaling)
 RUN mkdir -p /etc/X11/Xresources.d && \
     printf '%s\n' \
-    'Xft.dpi: 168' \
-    'Xcursor.size: 42' \
+    'Xft.dpi: 96' \
+    'Xft.antialias: 1' \
+    'Xft.hinting: 1' \
+    'Xft.hintstyle: hintslight' \
+    'Xft.rgba: rgb' \
+    'Xcursor.size: 24' \
     > /etc/X11/Xresources.d/scaling
 
 # Set Cinnamon theme defaults via dconf
@@ -377,7 +417,7 @@ RUN mkdir -p /etc/dconf/profile /etc/dconf/db/local.d && \
     '[org/cinnamon/desktop/interface]' \
     "icon-theme='Papirus'" \
     "cursor-theme='DMZ-White'" \
-    "cursor-size=42" \
+    "cursor-size=24" \
     "gtk-theme='Adwaita'" \
     '' \
     '[org/cinnamon/theme]' \
@@ -386,7 +426,7 @@ RUN mkdir -p /etc/dconf/profile /etc/dconf/db/local.d && \
     '[org/gnome/desktop/interface]' \
     "icon-theme='Papirus'" \
     "cursor-theme='DMZ-White'" \
-    "cursor-size=42" \
+    "cursor-size=24" \
     "gtk-theme='Adwaita'" \
     > /etc/dconf/db/local.d/00-theme && \
     dconf update
@@ -489,27 +529,47 @@ RUN <<'EOF'
 cat > /etc/supervisor/conf.d/services.conf <<'CONF'
 [supervisord]
 nodaemon=false
+logfile=/var/log/supervisord.log
+logfile_maxbytes=1MB
+loglevel=warn
+pidfile=/var/run/supervisord.pid
 
 [program:sshd]
 command=/usr/sbin/sshd -D
 autostart=true
 autorestart=true
+stdout_logfile=/var/log/sshd.log
+stderr_logfile=/var/log/sshd.err
+stdout_logfile_maxbytes=1MB
+stderr_logfile_maxbytes=1MB
 
 [program:dbus]
 command=/usr/bin/dbus-daemon --system --nofork
 autostart=true
 autorestart=true
+stdout_logfile=/dev/null
+stderr_logfile=/dev/null
+stdout_logfile_maxbytes=0
+stderr_logfile_maxbytes=0
 
 [program:xrdp-sesman]
 command=/usr/local/sbin/xrdp-sesman --nodaemon
 autostart=true
 autorestart=true
+stdout_logfile=/var/log/xrdp-sesman.log
+stderr_logfile=/var/log/xrdp-sesman.err
+stdout_logfile_maxbytes=1MB
+stderr_logfile_maxbytes=1MB
 
 [program:xrdp]
 command=/usr/local/sbin/xrdp --nodaemon
 autostart=true
 autorestart=true
 depends_on=xrdp-sesman
+stdout_logfile=/var/log/xrdp.log
+stderr_logfile=/var/log/xrdp.err
+stdout_logfile_maxbytes=1MB
+stderr_logfile_maxbytes=1MB
 CONF
 EOF
 
@@ -519,32 +579,43 @@ cat > /opt/codex-entrypoint.sh <<'ENTRY'
 #!/usr/bin/env bash
 set -e
 
-# Run container setup (password, timezone, codex config, XRDP certs)
-/usr/local/bin/setup-container.sh
+# All setup output to log file
+/usr/local/bin/setup-container.sh >/var/log/entrypoint.log 2>&1
 
-# Create XRDP runtime directories
-mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp
+# Fix /home/user ownership (after setup writes config files)
+chown -R user:user /home/user >/dev/null 2>&1
+
+# Create XRDP and PulseAudio runtime directories
+mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp /run/user/1000/pulse
+chown -R user:user /run/user/1000
 rm -f /run/xrdp/sesman.socket /run/xrdp/.sesman.socket.lock
 rm -rf /run/xrdp/sesman.socket.r
 
-# Start supervisord for background services (sshd, dbus, xrdp, xrdp-sesman)
-/usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+# Redirect /dev/console to /dev/null so background services can't write to it
+mount --bind /dev/null /dev/console 2>/dev/null || true
+
+# Start supervisord fully detached from this tty using setsid
+setsid /usr/bin/supervisord -c /etc/supervisor/supervisord.conf </dev/null >/dev/null 2>/dev/null &
 
 # Update Codex CLI and ralph-wiggum to latest
-npm update -g @openai/codex @th0rgal/ralph-wiggum 2>/dev/null || true
+npm update -g @openai/codex @th0rgal/ralph-wiggum >/dev/null 2>&1 || true
 
-# Install or update superpowers plugin
-HOME=/home/user
-if [ -d "$HOME/.codex/superpowers/.git" ]; then
-  (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
-else
-  git clone https://github.com/obra/superpowers.git "$HOME/.codex/superpowers" 2>/dev/null || true
-fi
-mkdir -p "$HOME/.agents/skills"
-ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
+# Install or update superpowers plugin as user
+sudo -u user bash -c '
+  if [ -d "$HOME/.codex/superpowers/.git" ]; then
+    (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
+  else
+    git clone https://github.com/obra/superpowers.git "$HOME/.codex/superpowers" 2>/dev/null || true
+  fi
+  mkdir -p "$HOME/.agents/skills"
+  ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
+' >/dev/null 2>&1 || true
+
+# Restore /dev/console for codex
+umount /dev/console 2>/dev/null || true
 
 # Launch Codex in foreground as user
-exec su - user -c "cd /files && codex --dangerously-bypass-approvals-and-sandbox $*"
+exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"
 ENTRY
 chmod +x /opt/codex-entrypoint.sh
 EOF
