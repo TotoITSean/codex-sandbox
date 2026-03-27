@@ -166,18 +166,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---------- Google Chrome ----------
-RUN curl -fsSL -o /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get update && \
-    apt-get install -y /tmp/google-chrome.deb && \
-    rm -f /tmp/google-chrome.deb && \
-    rm -rf /var/lib/apt/lists/* && \
-    # Chrome needs --no-sandbox in containers; patch the desktop entry and binary wrapper
-    sed -i 's|/usr/bin/google-chrome-stable|/usr/bin/google-chrome-stable --no-sandbox|g' /usr/share/applications/google-chrome.desktop && \
-    mv /usr/bin/google-chrome-stable /usr/bin/google-chrome-stable.real && \
-    printf '#!/bin/bash\nexec /usr/bin/google-chrome-stable.real --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer --disable-setuid-sandbox "$@"\n' > /usr/bin/google-chrome-stable && \
-    chmod +x /usr/bin/google-chrome-stable
-
 # ---------- .NET SDK 10 ----------
 RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
     && dpkg -i /tmp/packages-microsoft-prod.deb \
@@ -215,6 +203,10 @@ ENV TERM=xterm-256color
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV HOST=0.0.0.0
 ENV HOSTNAME=0.0.0.0
+
+# ---------- Set Firefox as default browser ----------
+RUN update-alternatives --set x-www-browser /usr/bin/firefox-esr && \
+    update-alternatives --set gnome-www-browser /usr/bin/firefox-esr 2>/dev/null || true
 
 # ==========================================================================
 # XRDP: Copy compiled binaries from builder stage
@@ -483,9 +475,16 @@ Mapped ports: HTTP `8080`, HTTPS `4430`, RDP `3389`.
 
 Connect via RDP on port 3389. Cinnamon desktop with Firefox browser.
 
+## Browser
+
+Firefox ESR is the default browser, located at `/usr/bin/firefox-esr`.
+Use Firefox for all browsing and automation tasks.
+Playwright is installed and configured for Firefox: use `npx playwright launch --browser firefox` or the Playwright API with `firefox` browser type.
+To launch Firefox from the command line: `firefox-esr`
+
 ## Available tools
 
-git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano, firefox-esr, ralph (wiggum loop)
+git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright (firefox), tmux, nano, firefox-esr, ralph (wiggum loop)
 
 ## Working directory
 
