@@ -10,8 +10,9 @@ OPENAI_API_KEY=
 # OpenAI OAuth token for Codex login (e.g. from `codex login`)
 OPENAI_OAUTH_TOKEN=
 
-# Port configuration
-HTTP_PORT=8080
-HTTPS_PORT=4430
-SSH_PORT=2222
-RDP_PORT=33890
+# Port configuration (auto-derived from folder name if not set)
+# Uncomment and set to override automatic port assignment
+#HTTP_PORT=8080
+#HTTPS_PORT=4430
+#SSH_PORT=2222
+#RDP_PORT=33890

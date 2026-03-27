@@ -32,6 +32,17 @@ for %%I in ("%~dp0.") do set FOLDER_NAME=%%~nxI
 set CONTAINER_NAME=%FOLDER_NAME%
 set COMPOSE_PROJECT=%FOLDER_NAME%
 
+REM Derive unique ports from folder name hash (deterministic per folder)
+for /f %%A in ('powershell -Command "[math]::Abs('%FOLDER_NAME%'.GetHashCode()) %% 1000"') do set PORT_OFFSET=%%A
+set /a HTTP_PORT=8000 + %PORT_OFFSET%
+set /a HTTPS_PORT=4400 + %PORT_OFFSET%
+set /a RDP_PORT=33000 + %PORT_OFFSET%
+set /a SSH_PORT=2200 + %PORT_OFFSET%
+
+echo Instance: %FOLDER_NAME%
+echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
+echo.
+
 echo Updating and building...
 echo.
 docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml build --pull > NUL

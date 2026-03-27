@@ -473,7 +473,8 @@ Mapped ports: HTTP `8080`, HTTPS `4430`, RDP `3389`.
 
 ## Desktop
 
-Connect via RDP on port 3389. Cinnamon desktop with Firefox browser.
+Cinnamon desktop with Firefox browser is available via RDP.
+When the user asks for RDP connection info or types "rdp", read and print the contents of /etc/rdp-info.txt
 
 ## Browser
 
@@ -508,6 +509,23 @@ else
     printf '\n[projects."/files"]\ntrust_level = "trusted"\n' >> "$HOME/.codex/config.toml"
   fi
 fi
+
+# --- Create /rdp skill for codex (always overwrite to keep port current) ---
+RDP_SKILL_DIR="$HOME/.codex/skills/rdp"
+mkdir -p "$RDP_SKILL_DIR"
+RDP_PORT="${RDP_HOST_PORT:-33890}"
+cat > "$RDP_SKILL_DIR/SKILL.md" <<SKILL
+---
+name: rdp
+description: Print the RDP remote desktop connection info for this container
+---
+
+Print the following connection info exactly as shown:
+
+Remote Desktop Address: localhost:${RDP_PORT}
+Username: user
+Password: (value of USER_PASSWORD from settings.txt)
+SKILL
 
 # --- Generate XRDP certificates if needed ---
 if [ ! -f /etc/xrdp/cert.d/cert.pem ]; then
@@ -610,8 +628,27 @@ sudo -u user bash -c '
   ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
 ' >/dev/null 2>&1 || true
 
+# Write RDP connection info (uses env vars available at runtime)
+RDP_PORT="${RDP_HOST_PORT:-33890}"
+cat > /etc/rdp-info.txt <<RDPINFO
+Remote Desktop Address: localhost:${RDP_PORT}
+Username: user
+Password: (value of USER_PASSWORD from settings.txt)
+RDPINFO
+
 # Restore /dev/console for codex
 umount /dev/console 2>/dev/null || true
+
+# Print RDP info on startup
+PASS="${USER_PASSWORD:-changeme}"
+if [ "$PASS" = "changeme" ]; then
+  CREDS="user / changeme"
+else
+  CREDS="user / USER_PASSWORD"
+fi
+echo ""
+echo "RDP available at localhost:${RDP_PORT} (${CREDS})"
+echo ""
 
 # Launch Codex in foreground as user
 exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"
