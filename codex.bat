@@ -27,11 +27,14 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-set CONTAINER_NAME=codex
+REM Derive project and container name from the folder this script lives in
+for %%I in ("%~dp0.") do set FOLDER_NAME=%%~nxI
+set CONTAINER_NAME=%FOLDER_NAME%
+set COMPOSE_PROJECT=%FOLDER_NAME%
 
 echo Updating and building...
 echo.
-docker-compose -f docker/docker-compose.yaml build --pull > NUL
+docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml build --pull > NUL
 echo.
 
 REM Check if the container already exists (running or stopped)
@@ -43,7 +46,7 @@ if %errorlevel% equ 0 (
 ) else (
     echo Creating new container...
     echo.
-    docker-compose -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+    docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
 )
 if %errorlevel% equ 0 goto :eof
 
@@ -58,8 +61,8 @@ call "%~dp0docker-cleanup.bat" -y
 echo.
 echo Retrying...
 echo.
-docker-compose -f docker/docker-compose.yaml build --pull > NUL
-docker-compose -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml build --pull > NUL
+docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
 if %errorlevel% equ 0 goto :eof
 
 echo.
