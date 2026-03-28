@@ -26,6 +26,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
       - RDP_HOST_PORT=${RDP_PORT:-33890}
+      - HTTP_HOST_PORT=${HTTP_PORT:-8080}
     env_file: ../settings.txt
     restart: unless-stopped
     logging:

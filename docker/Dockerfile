@@ -510,22 +510,6 @@ else
   fi
 fi
 
-# --- Create /rdp skill for codex (always overwrite to keep port current) ---
-RDP_SKILL_DIR="$HOME/.codex/skills/rdp"
-mkdir -p "$RDP_SKILL_DIR"
-RDP_PORT="${RDP_HOST_PORT:-33890}"
-cat > "$RDP_SKILL_DIR/SKILL.md" <<SKILL
----
-name: rdp
-description: Print the RDP remote desktop connection info for this container
----
-
-Print the following connection info exactly as shown:
-
-Remote Desktop Address: localhost:${RDP_PORT}
-Username: user
-Password: (value of USER_PASSWORD from settings.txt)
-SKILL
 
 # --- Generate XRDP certificates if needed ---
 if [ ! -f /etc/xrdp/cert.d/cert.pem ]; then
@@ -628,18 +612,11 @@ sudo -u user bash -c '
   ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
 ' >/dev/null 2>&1 || true
 
-# Write RDP connection info (uses env vars available at runtime)
-RDP_PORT="${RDP_HOST_PORT:-33890}"
-cat > /etc/rdp-info.txt <<RDPINFO
-Remote Desktop Address: localhost:${RDP_PORT}
-Username: user
-Password: (value of USER_PASSWORD from settings.txt)
-RDPINFO
-
 # Restore /dev/console for codex
 umount /dev/console 2>/dev/null || true
 
-# Print RDP info on startup
+# Print RDP info on startup and set terminal title
+RDP_PORT="${RDP_HOST_PORT:-33890}"
 PASS="${USER_PASSWORD:-changeme}"
 if [ "$PASS" = "changeme" ]; then
   CREDS="user / changeme"

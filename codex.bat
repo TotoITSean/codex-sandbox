@@ -39,6 +39,8 @@ set /a HTTPS_PORT=4400 + %PORT_OFFSET%
 set /a RDP_PORT=33000 + %PORT_OFFSET%
 set /a SSH_PORT=2200 + %PORT_OFFSET%
 
+title %FOLDER_NAME% ^| RDP: localhost:%RDP_PORT% ^| HTTP: http://localhost:%HTTP_PORT%
+
 echo Instance: %FOLDER_NAME%
 echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
 echo.
