@@ -186,7 +186,8 @@ RUN groupadd -g $PGID user 2>/dev/null || groupmod -n user $(getent group $PGID 
     usermod -a -G sudo,audio,video user && \
     echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/user/.profile && \
-    echo 'cd /files' >> /home/user/.bashrc
+    echo 'cd /files' >> /home/user/.bashrc && \
+    echo '[ -f /etc/container-title ] && PROMPT_COMMAND="printf \"\\033]0;\$(cat /etc/container-title)\\007\";$PROMPT_COMMAND"' >> /home/user/.bashrc
 
 # ---------- SSH ----------
 RUN mkdir -p /run/sshd \
@@ -626,6 +627,12 @@ fi
 echo ""
 echo "RDP available at localhost:${RDP_PORT} (${CREDS})"
 echo ""
+
+# Write persistent terminal title
+HTTP_PORT="${HTTP_HOST_PORT:-8080}"
+printf '%s | RDP: localhost:%s (%s) | HTTP: http://localhost:%s' \
+  "${HOSTNAME:-codex}" "${RDP_PORT}" "${CREDS}" "${HTTP_PORT}" \
+  > /etc/container-title
 
 # Launch Codex in foreground as user
 exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"
