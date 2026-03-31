@@ -39,7 +39,10 @@ set /a HTTPS_PORT=4400 + %PORT_OFFSET%
 set /a RDP_PORT=33000 + %PORT_OFFSET%
 set /a SSH_PORT=2200 + %PORT_OFFSET%
 
-title %FOLDER_NAME% ^| RDP: localhost:%RDP_PORT% ^| HTTP: http://localhost:%HTTP_PORT%
+title %FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%
+
+REM Background process to keep terminal title (docker/codex resets it)
+start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
 
 echo Instance: %FOLDER_NAME%
 echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
