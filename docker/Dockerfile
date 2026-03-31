@@ -628,11 +628,10 @@ echo ""
 echo "RDP available at localhost:${RDP_PORT} (${CREDS})"
 echo ""
 
-# Write persistent terminal title
+# Keep terminal title set in background (codex resets it to cwd)
 HTTP_PORT="${HTTP_HOST_PORT:-8080}"
-printf '%s | RDP: localhost:%s (%s) | HTTP: http://localhost:%s' \
-  "${HOSTNAME:-codex}" "${RDP_PORT}" "${CREDS}" "${HTTP_PORT}" \
-  > /etc/container-title
+TITLE="${HOSTNAME:-codex} | RDP: localhost:${RDP_PORT} (${CREDS}) | HTTP: http://localhost:${HTTP_PORT}"
+(while true; do printf '\033]0;%s\007' "$TITLE" >/proc/1/fd/1 2>/dev/null; sleep 5; done) &
 
 # Launch Codex in foreground as user
 exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"
