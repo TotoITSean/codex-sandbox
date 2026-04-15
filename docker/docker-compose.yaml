@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        - ENABLE_XRDP=${ENABLE_XRDP:-true}
     stdin_open: true
     tty: true
     shm_size: '2gb'

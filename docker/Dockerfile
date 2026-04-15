@@ -1,9 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
+# Global build arg: enable/disable XRDP and desktop environment
+ARG ENABLE_XRDP=true
+
 # ==========================================================================
-# Stage 1: Build XRDP from source with H264 encoding support
+# Stage 1a: Build XRDP from source with H264 encoding support (real)
 # ==========================================================================
-FROM debian:bookworm AS xrdp-builder
+FROM debian:bookworm AS xrdp-builder-true
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -87,13 +90,46 @@ RUN mkdir -p /build/pulse-xrdp-modules && \
     find /usr/lib -name "module-xrdp-*.so" -exec cp {} /build/pulse-xrdp-modules/ \;
 
 # ==========================================================================
+# Stage 1b: Stub builder used when ENABLE_XRDP=false
+# Creates empty placeholder files so COPY commands still succeed.
+# ==========================================================================
+FROM debian:bookworm AS xrdp-builder-false
+RUN mkdir -p \
+    /usr/local/bin \
+    /usr/local/sbin \
+    /usr/local/lib/xrdp \
+    /usr/local/libexec/xrdp \
+    /usr/local/share/xrdp \
+    /usr/lib/xorg/modules \
+    /etc/xrdp \
+    /build/pulse-xrdp-modules && \
+    touch \
+    /usr/local/bin/xrdp-stub \
+    /usr/local/sbin/xrdp-stub \
+    /usr/local/lib/libx264.so.stub \
+    /usr/local/libexec/xrdp/stub \
+    /usr/local/share/xrdp/stub \
+    /usr/lib/xorg/modules/stub.so \
+    /etc/xrdp/stub \
+    /build/pulse-xrdp-modules/module-xrdp-stub.so
+
+# ==========================================================================
+# Stage 1c: Selector alias — picks real or stub based on ENABLE_XRDP
+# ==========================================================================
+FROM xrdp-builder-${ENABLE_XRDP} AS xrdp-builder
+
+# ==========================================================================
 # Stage 2: Runtime image with Cinnamon desktop, XRDP, and dev tools
 # ==========================================================================
 FROM node:22-slim
 
+# Re-declare the ARG inside this stage so RUN commands can read it
+ARG ENABLE_XRDP=true
+ENV ENABLE_XRDP=${ENABLE_XRDP}
+
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ---------- Core tools, desktop environment, and dev essentials ----------
+# ---------- Core tools and dev essentials (always installed) ----------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         # Build tools
         build-essential \
@@ -124,47 +160,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mosh \
         dos2unix \
         locales \
-        # Cinnamon desktop
-        cinnamon \
-        cinnamon-core \
-        cinnamon-session \
-        lightdm \
-        # X11 and graphics
-        xserver-xorg-core \
-        xserver-xorg-input-all \
-        xserver-xorg-video-all \
-        x11-xserver-utils \
-        dbus-x11 \
-        # XRDP runtime deps
-        libssl3 \
-        libpam0g \
-        libjpeg62-turbo \
-        libturbojpeg0 \
-        libx11-6 \
-        libxrandr2 \
-        libxfixes3 \
-        fuse3 \
-        # Themes, icons, and cursors
-        adwaita-icon-theme \
-        gnome-themes-extra \
-        papirus-icon-theme \
-        dmz-cursor-theme \
-        dconf-cli \
-        lxappearance \
-        bc \
-        # PulseAudio for sound
-        pulseaudio \
-        # Terminal and browser
-        xfce4-terminal \
-        firefox-esr \
-        # PulseAudio extras for XRDP sound
-        pulseaudio-utils \
-        alsa-utils \
         # Process management
         supervisor \
-        dbus \
         openssl \
     && rm -rf /var/lib/apt/lists/*
+
+# ---------- Desktop + XRDP packages (only when ENABLE_XRDP=true) ----------
+RUN if [ "$ENABLE_XRDP" = "true" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+            cinnamon \
+            cinnamon-core \
+            cinnamon-session \
+            lightdm \
+            xserver-xorg-core \
+            xserver-xorg-input-all \
+            xserver-xorg-video-all \
+            x11-xserver-utils \
+            dbus-x11 \
+            libssl3 \
+            libpam0g \
+            libjpeg62-turbo \
+            libturbojpeg0 \
+            libx11-6 \
+            libxrandr2 \
+            libxfixes3 \
+            fuse3 \
+            adwaita-icon-theme \
+            gnome-themes-extra \
+            papirus-icon-theme \
+            dmz-cursor-theme \
+            dconf-cli \
+            lxappearance \
+            bc \
+            pulseaudio \
+            pulseaudio-utils \
+            alsa-utils \
+            xfce4-terminal \
+            firefox-esr \
+            dbus \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # ---------- .NET SDK 10 ----------
 RUN curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o /tmp/packages-microsoft-prod.deb \
@@ -205,12 +240,16 @@ ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV HOST=0.0.0.0
 ENV HOSTNAME=0.0.0.0
 
-# ---------- Set Firefox as default browser ----------
-RUN update-alternatives --set x-www-browser /usr/bin/firefox-esr && \
-    update-alternatives --set gnome-www-browser /usr/bin/firefox-esr 2>/dev/null || true
+# ---------- Set Firefox as default browser (when XRDP enabled) ----------
+RUN if [ "$ENABLE_XRDP" = "true" ]; then \
+        update-alternatives --set x-www-browser /usr/bin/firefox-esr && \
+        update-alternatives --set gnome-www-browser /usr/bin/firefox-esr 2>/dev/null || true; \
+    fi
 
 # ==========================================================================
 # XRDP: Copy compiled binaries from builder stage
+# When ENABLE_XRDP=false the builder is a stub, so these copies land
+# harmless placeholder files that are never executed.
 # ==========================================================================
 COPY --from=xrdp-builder /usr/local/bin/xrdp* /usr/local/bin/
 COPY --from=xrdp-builder /usr/local/sbin/xrdp* /usr/local/sbin/
@@ -223,21 +262,24 @@ COPY --from=xrdp-builder /usr/local/share/xrdp/ /usr/local/share/xrdp/
 
 # Copy xrdp PulseAudio modules
 COPY --from=xrdp-builder /build/pulse-xrdp-modules/ /tmp/pulse-modules/
-RUN PULSE_MOD_DIR=$(find /usr/lib -maxdepth 1 -type d -name 'pulse-*' | head -1)/modules && \
-    cp /tmp/pulse-modules/module-xrdp-*.so "$PULSE_MOD_DIR/" && \
+RUN if [ "$ENABLE_XRDP" = "true" ]; then \
+        PULSE_MOD_DIR=$(find /usr/lib -maxdepth 1 -type d -name 'pulse-*' | head -1)/modules && \
+        cp /tmp/pulse-modules/module-xrdp-*.so "$PULSE_MOD_DIR/"; \
+    fi && \
     rm -rf /tmp/pulse-modules
 
-# PAM config for xrdp-sesman
-RUN printf '%s\n' \
+# ==========================================================================
+# XRDP configuration (only when ENABLE_XRDP=true)
+# ==========================================================================
+RUN if [ "$ENABLE_XRDP" != "true" ]; then exit 0; fi && \
+    printf '%s\n' \
 '#%PAM-1.0' \
 '@include common-auth' \
 '@include common-account' \
 'session    optional     pam_loginuid.so' \
 '@include common-session' \
-> /etc/pam.d/xrdp-sesman
-
-# Xorg config for xrdpdev virtual framebuffer driver
-RUN mkdir -p /etc/X11/xrdp && printf '%s\n' \
+> /etc/pam.d/xrdp-sesman && \
+    mkdir -p /etc/X11/xrdp && printf '%s\n' \
 'Section "ServerLayout"' \
 '    Identifier "X.org Configured"' \
 '    Screen 0 "Screen0" 0 0' \
@@ -282,51 +324,35 @@ RUN mkdir -p /etc/X11/xrdp && printf '%s\n' \
 '        Modes "800x600"' \
 '    EndSubSection' \
 'EndSection' \
-> /etc/X11/xrdp/xorg.conf
-
-# Generate xrdp RSA keys and create directories
-RUN /usr/local/bin/xrdp-keygen xrdp /etc/xrdp/rsakeys.ini && \
+> /etc/X11/xrdp/xorg.conf && \
+    /usr/local/bin/xrdp-keygen xrdp /etc/xrdp/rsakeys.ini && \
     ldconfig && \
-    mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp /etc/xrdp/cert.d
-
-# Set xfce4-terminal as default (gnome-terminal requires systemd user session)
-RUN update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper
-
-# Configure XRDP for H264 and performance
-RUN echo "allowed_users=anybody" > /etc/X11/Xwrapper.config && \
-    echo "needs_root_rights=yes" >> /etc/X11/Xwrapper.config
-
-# Improve H264 quality
-RUN sed -i \
-    -e 's/^preset = "ultrafast"/preset = "veryfast"/' \
-    -e 's/^profile = "main".*$/profile = "high"/' \
-    -e 's/^threads = 1.*$/threads = 2/' \
-    /etc/xrdp/gfx.toml
-
-# Strip non-Xorg session types
-RUN sed -i '/^\[Xvnc\]/,$d' /etc/xrdp/xrdp.ini
-
-# Force xrdp and sesman to log to files only, not syslog/console
-RUN sed -i \
-    -e 's|^LogFile=.*|LogFile=/var/log/xrdp/xrdp.log|' \
-    -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
-    -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
-    -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
-    -e 's|^LogLevel=.*|LogLevel=WARNING|' \
-    /etc/xrdp/xrdp.ini && \
+    mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp /etc/xrdp/cert.d && \
+    update-alternatives --set x-terminal-emulator /usr/bin/xfce4-terminal.wrapper && \
+    echo "allowed_users=anybody" > /etc/X11/Xwrapper.config && \
+    echo "needs_root_rights=yes" >> /etc/X11/Xwrapper.config && \
     sed -i \
-    -e 's|^LogFile=.*|LogFile=/var/log/xrdp/sesman.log|' \
-    -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
-    -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
-    -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
-    -e 's|^LogLevel=.*|LogLevel=WARNING|' \
-    /etc/xrdp/sesman.ini
-
-# Set XRDP_SOCKET_PATH for PulseAudio xrdp modules (UID 1000 = user)
-RUN sed -i '/^\[SessionVariables\]/a XRDP_SOCKET_PATH=/run/xrdp/1000' /etc/xrdp/sesman.ini
-
-# Create startwm.sh to launch Cinnamon desktop session
-RUN printf '%s\n' \
+        -e 's/^preset = "ultrafast"/preset = "veryfast"/' \
+        -e 's/^profile = "main".*$/profile = "high"/' \
+        -e 's/^threads = 1.*$/threads = 2/' \
+        /etc/xrdp/gfx.toml && \
+    sed -i '/^\[Xvnc\]/,$d' /etc/xrdp/xrdp.ini && \
+    sed -i \
+        -e 's|^LogFile=.*|LogFile=/var/log/xrdp/xrdp.log|' \
+        -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
+        -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
+        -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
+        -e 's|^LogLevel=.*|LogLevel=WARNING|' \
+        /etc/xrdp/xrdp.ini && \
+    sed -i \
+        -e 's|^LogFile=.*|LogFile=/var/log/xrdp/sesman.log|' \
+        -e 's|^SyslogLevel=.*|SyslogLevel=DISABLED|' \
+        -e 's|^EnableSyslog=.*|EnableSyslog=false|' \
+        -e 's|^#EnableSyslog=.*|EnableSyslog=false|' \
+        -e 's|^LogLevel=.*|LogLevel=WARNING|' \
+        /etc/xrdp/sesman.ini && \
+    sed -i '/^\[SessionVariables\]/a XRDP_SOCKET_PATH=/run/xrdp/1000' /etc/xrdp/sesman.ini && \
+    printf '%s\n' \
 '#!/bin/sh' \
 '' \
 'if [ -r /etc/default/locale ]; then' \
@@ -338,7 +364,6 @@ RUN printf '%s\n' \
 'export XDG_CURRENT_DESKTOP=X-Cinnamon' \
 'export DESKTOP_SESSION=cinnamon' \
 '' \
-'# Display scaling' \
 'export GDK_DPI_SCALE=1.0' \
 'export QT_SCALE_FACTOR=1.0' \
 'if [ -f "$HOME/.config/display-scaling.conf" ]; then' \
@@ -350,26 +375,19 @@ RUN printf '%s\n' \
 '    xrdb -merge /etc/X11/Xresources.d/scaling' \
 'fi' \
 '' \
-'# Start PulseAudio with xrdp sink/source for audio redirection' \
 'export XRDP_SOCKET_PATH=/run/xrdp/$(id -u)' \
 'export PULSE_RUNTIME_PATH=/run/user/$(id -u)/pulse' \
 'export XDG_RUNTIME_DIR=/run/user/$(id -u)' \
 'mkdir -p "$XDG_RUNTIME_DIR" "$PULSE_RUNTIME_PATH"' \
 'chmod 700 "$XDG_RUNTIME_DIR"' \
-'# Kill any existing PulseAudio and start fresh' \
 'pulseaudio --kill 2>/dev/null || true' \
 'sleep 0.5' \
 'pulseaudio --start --log-target=syslog 2>/dev/null' \
 '' \
 'exec dbus-launch --exit-with-session cinnamon-session' \
-> /etc/xrdp/startwm.sh && chmod +x /etc/xrdp/startwm.sh
-
-# Disable PulseAudio realtime scheduling and auto-exit
-RUN printf '\n%s\n' 'realtime-scheduling = no' 'high-priority = no' 'exit-idle-time = -1' >> /etc/pulse/daemon.conf
-
-# PulseAudio system-wide config for XRDP audio redirection
-# Uses /etc/pulse/default.pa (system-wide) so it survives /home/user volume mount
-RUN printf '%s\n' \
+> /etc/xrdp/startwm.sh && chmod +x /etc/xrdp/startwm.sh && \
+    printf '\n%s\n' 'realtime-scheduling = no' 'high-priority = no' 'exit-idle-time = -1' >> /etc/pulse/daemon.conf && \
+    printf '%s\n' \
 '#!/usr/bin/pulseaudio -nF' \
 '' \
 'load-module module-augment-properties' \
@@ -390,39 +408,36 @@ RUN printf '%s\n' \
 '' \
 'load-module module-native-protocol-tcp auth-ip-acl=127.0.0.1' \
 'load-module module-switch-on-connect' \
-> /etc/pulse/default.pa
-
-# System-wide DPI default (96 = native, let RDP client handle scaling)
-RUN mkdir -p /etc/X11/Xresources.d && \
+> /etc/pulse/default.pa && \
+    mkdir -p /etc/X11/Xresources.d && \
     printf '%s\n' \
-    'Xft.dpi: 96' \
-    'Xft.antialias: 1' \
-    'Xft.hinting: 1' \
-    'Xft.hintstyle: hintslight' \
-    'Xft.rgba: rgb' \
-    'Xcursor.size: 24' \
-    > /etc/X11/Xresources.d/scaling
-
-# Set Cinnamon theme defaults via dconf
-RUN mkdir -p /etc/dconf/profile /etc/dconf/db/local.d && \
+        'Xft.dpi: 96' \
+        'Xft.antialias: 1' \
+        'Xft.hinting: 1' \
+        'Xft.hintstyle: hintslight' \
+        'Xft.rgba: rgb' \
+        'Xcursor.size: 24' \
+        > /etc/X11/Xresources.d/scaling && \
+    mkdir -p /etc/dconf/profile /etc/dconf/db/local.d && \
     printf '%s\n' 'user-db:user' 'system-db:local' > /etc/dconf/profile/user && \
     printf '%s\n' \
-    '[org/cinnamon/desktop/interface]' \
-    "icon-theme='Papirus'" \
-    "cursor-theme='DMZ-White'" \
-    "cursor-size=24" \
-    "gtk-theme='Adwaita'" \
-    '' \
-    '[org/cinnamon/theme]' \
-    "name='cinnamon'" \
-    '' \
-    '[org/gnome/desktop/interface]' \
-    "icon-theme='Papirus'" \
-    "cursor-theme='DMZ-White'" \
-    "cursor-size=24" \
-    "gtk-theme='Adwaita'" \
-    > /etc/dconf/db/local.d/00-theme && \
-    dconf update
+        '[org/cinnamon/desktop/interface]' \
+        "icon-theme='Papirus'" \
+        "cursor-theme='DMZ-White'" \
+        "cursor-size=24" \
+        "gtk-theme='Adwaita'" \
+        '' \
+        '[org/cinnamon/theme]' \
+        "name='cinnamon'" \
+        '' \
+        '[org/gnome/desktop/interface]' \
+        "icon-theme='Papirus'" \
+        "cursor-theme='DMZ-White'" \
+        "cursor-size=24" \
+        "gtk-theme='Adwaita'" \
+        > /etc/dconf/db/local.d/00-theme && \
+    dconf update && \
+    echo "true" > /etc/xrdp-enabled
 
 # ---------- Tmux config ----------
 RUN echo 'set -g default-terminal "xterm-256color"' > /etc/tmux.conf && \
@@ -459,9 +474,10 @@ set -ga terminal-overrides ",xterm-256color:Tc"
 TMUX
 fi
 
-# --- Global Codex instructions ---
+# --- Global Codex instructions (different based on whether XRDP is enabled) ---
 mkdir -p "$HOME/.codex"
-cat > "$HOME/.codex/AGENTS.md" <<'AGENTS'
+if [ -f /etc/xrdp-enabled ]; then
+  cat > "$HOME/.codex/AGENTS.md" <<'AGENTS'
 # Environment
 
 You are running inside a Docker container (Debian-based, node:22-slim) with a Cinnamon desktop accessible via XRDP.
@@ -475,7 +491,6 @@ Mapped ports: HTTP `8080`, HTTPS `4430`, RDP `3389`.
 ## Desktop
 
 Cinnamon desktop with Firefox browser is available via RDP.
-When the user asks for RDP connection info or types "rdp", read and print the contents of /etc/rdp-info.txt
 
 ## Browser
 
@@ -492,6 +507,28 @@ git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright (firefo
 
 `/files` — this directory is shared with the host machine.
 AGENTS
+else
+  cat > "$HOME/.codex/AGENTS.md" <<'AGENTS'
+# Environment
+
+You are running inside a headless Docker container (Debian-based, node:22-slim).
+No desktop environment or browser is available.
+supervisord manages background services — config in /etc/supervisor/conf.d/.
+
+## Networking
+
+Docker container — ALWAYS bind to `0.0.0.0`, NEVER `localhost`/`127.0.0.1`.
+Mapped ports: HTTP `8080`, HTTPS `4430`.
+
+## Available tools
+
+git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, nano, ralph (wiggum loop)
+
+## Working directory
+
+`/files` — this directory is shared with the host machine.
+AGENTS
+fi
 
 # --- Enable multi-agent feature and trust /files ---
 if [ ! -f "$HOME/.codex/config.toml" ]; then
@@ -512,8 +549,8 @@ else
 fi
 
 
-# --- Generate XRDP certificates if needed ---
-if [ ! -f /etc/xrdp/cert.d/cert.pem ]; then
+# --- Generate XRDP certificates if needed (only when XRDP enabled) ---
+if [ -f /etc/xrdp-enabled ] && [ ! -f /etc/xrdp/cert.d/cert.pem ]; then
     mkdir -p /etc/xrdp/cert.d
     cd /etc/xrdp/cert.d
     openssl req -x509 -newkey rsa:2048 -nodes \
@@ -525,10 +562,9 @@ chmod +x /usr/local/bin/setup-container.sh
 EOF
 
 # ==========================================================================
-# Supervisord config (background services)
+# Supervisord config (background services) — XRDP services added conditionally
 # ==========================================================================
-RUN <<'EOF'
-cat > /etc/supervisor/conf.d/services.conf <<'CONF'
+RUN cat > /etc/supervisor/conf.d/services.conf <<'CONF'
 [supervisord]
 nodaemon=false
 logfile=/var/log/supervisord.log
@@ -544,6 +580,10 @@ stdout_logfile=/var/log/sshd.log
 stderr_logfile=/var/log/sshd.err
 stdout_logfile_maxbytes=1MB
 stderr_logfile_maxbytes=1MB
+CONF
+
+RUN if [ "$ENABLE_XRDP" = "true" ]; then \
+        cat >> /etc/supervisor/conf.d/services.conf <<'CONFXRDP'
 
 [program:dbus]
 command=/usr/bin/dbus-daemon --system --nofork
@@ -572,8 +612,8 @@ stdout_logfile=/var/log/xrdp.log
 stderr_logfile=/var/log/xrdp.err
 stdout_logfile_maxbytes=1MB
 stderr_logfile_maxbytes=1MB
-CONF
-EOF
+CONFXRDP
+    fi
 
 # ---------- Entrypoint ----------
 RUN <<'EOF'
@@ -587,11 +627,13 @@ set -e
 # Fix /home/user ownership (after setup writes config files)
 chown -R user:user /home/user >/dev/null 2>&1
 
-# Create XRDP and PulseAudio runtime directories
-mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp /run/user/1000/pulse
-chown -R user:user /run/user/1000
-rm -f /run/xrdp/sesman.socket /run/xrdp/.sesman.socket.lock
-rm -rf /run/xrdp/sesman.socket.r
+# Create XRDP and PulseAudio runtime directories (only when XRDP enabled)
+if [ -f /etc/xrdp-enabled ]; then
+  mkdir -p /run/xrdp /var/run/xrdp /var/log/xrdp /run/user/1000/pulse
+  chown -R user:user /run/user/1000
+  rm -f /run/xrdp/sesman.socket /run/xrdp/.sesman.socket.lock
+  rm -rf /run/xrdp/sesman.socket.r
+fi
 
 # Redirect /dev/console to /dev/null so background services can't write to it
 mount --bind /dev/null /dev/console 2>/dev/null || true
@@ -616,17 +658,19 @@ sudo -u user bash -c '
 # Restore /dev/console for codex
 umount /dev/console 2>/dev/null || true
 
-# Print RDP info on startup and set terminal title
-RDP_PORT="${RDP_HOST_PORT:-33890}"
-PASS="${USER_PASSWORD:-changeme}"
-if [ "$PASS" = "changeme" ]; then
-  CREDS="user / changeme"
-else
-  CREDS="user / USER_PASSWORD"
+# Print RDP info on startup (only when XRDP enabled)
+if [ -f /etc/xrdp-enabled ]; then
+  RDP_PORT="${RDP_HOST_PORT:-33890}"
+  PASS="${USER_PASSWORD:-changeme}"
+  if [ "$PASS" = "changeme" ]; then
+    CREDS="user / changeme"
+  else
+    CREDS="user / USER_PASSWORD"
+  fi
+  echo ""
+  echo "RDP available at localhost:${RDP_PORT} (${CREDS})"
+  echo ""
 fi
-echo ""
-echo "RDP available at localhost:${RDP_PORT} (${CREDS})"
-echo ""
 
 # Launch Codex in foreground as user
 exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"

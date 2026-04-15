@@ -39,13 +39,28 @@ set /a HTTPS_PORT=4400 + %PORT_OFFSET%
 set /a RDP_PORT=33000 + %PORT_OFFSET%
 set /a SSH_PORT=2200 + %PORT_OFFSET%
 
-title %FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%
+REM Parse ENABLE_XRDP from settings.txt (default: true)
+set ENABLE_XRDP=true
+if exist "%~dp0settings.txt" (
+    for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0settings.txt") do (
+        if /i "%%A"=="ENABLE_XRDP" set ENABLE_XRDP=%%B
+    )
+)
 
-REM Background process to keep terminal title (docker/codex resets it)
-start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
+if /i "%ENABLE_XRDP%"=="true" (
+    title %FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%
+    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
+) else (
+    title %FOLDER_NAME% - HTTP: http://localhost:%HTTP_PORT%
+    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
+)
 
-echo Instance: %FOLDER_NAME%
-echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
+echo Instance: %FOLDER_NAME%  (XRDP: %ENABLE_XRDP%)
+if /i "%ENABLE_XRDP%"=="true" (
+    echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
+) else (
+    echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  SSH: %SSH_PORT%
+)
 echo.
 
 echo Updating and building...
