@@ -1,0 +1,22 @@
+# Enable XRDP + Cinnamon desktop + Firefox browser (true/false)
+# When false, the container is headless — no GUI, desktop, or browser is installed.
+ENABLE_XRDP=false
+
+# Password for SSH / sudo access
+USER_PASSWORD=changeme
+
+# Timezone (default: America/Los_Angeles)
+TZ=America/Los_Angeles
+
+# OpenAI API key for Codex
+OPENAI_API_KEY=
+
+# OpenAI OAuth token for Codex login (e.g. from `codex login`)
+OPENAI_OAUTH_TOKEN=
+
+# Port configuration (auto-derived from folder name if not set)
+# Uncomment and set to override automatic port assignment
+#HTTP_PORT=8080
+#HTTPS_PORT=4430
+#SSH_PORT=2222
+#RDP_PORT=33890

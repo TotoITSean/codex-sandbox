@@ -35,7 +35,7 @@ It's usually under **Advanced**, **CPU Configuration**, **Security**, or **Tweak
 Already have Docker Desktop? Skip ahead.
 
 ```
-docker-install.bat        # right-click → Run as administrator
+install-docker.bat        # right-click → Run as administrator
 ```
 
 Restart your machine after install, then launch **Docker Desktop** once so it finishes setup.
@@ -45,10 +45,10 @@ Restart your machine after install, then launch **Docker Desktop** once so it fi
 Copy the sample environment file to create your own:
 
 ```
-copy .env.sample .env
+copy docker\.env.sample docker\.env
 ```
 
-Open `.env` in any text editor. Here's what each setting does:
+Open `docker\.env` in any text editor. Here's what each setting does:
 
 | Variable | Default | What it controls |
 |----------|---------|-----------------|
@@ -59,8 +59,6 @@ Open `.env` in any text editor. Here's what each setting does:
 | `HTTP_PORT` | `8080` | Host port mapped to the container's port 8080. |
 | `HTTPS_PORT` | `4430` | Host port mapped to the container's port 4430. |
 | `SSH_PORT` | `2222` | Host port for SSH access (mapped to container port 22). |
-| `GIT_USER` | `codex` | Git commit author name. |
-| `GIT_EMAIL` | `codex@` | Git commit author email. |
 
 Common timezone values for *TZ*
 
@@ -84,6 +82,8 @@ codex.bat
 
 > **Heads up:** The first build pulls and installs everything (.NET SDK, FFmpeg, ImageMagick, etc.). Expect it to take several minutes. Subsequent runs start in seconds.
 
+The container is **persistent** — when you exit Codex, the container stops but is not removed. The next time you run `codex.bat`, it restarts the same container with all your installed packages, shell history, and login credentials intact. Only the `/files` folder and `/root` home directory are preserved across full rebuilds (via Docker volumes).
+
 ## 4 — First-Time Login
 
 On first launch Codex will prompt you to authenticate:
@@ -91,11 +91,11 @@ On first launch Codex will prompt you to authenticate:
 ```
 ? How would you like to authenticate?
   1. Sign in with ChatGPT
-▸ 2. 
+▸ 2. Sign in with Device Code
   3. Use an API key
 ```
 
-**Choose option 2** and paste your OpenAI API key.
+**Choose option 2** (device code), open the link in a browser, log in to ChatGPT, and enter the code provided (you can ctrl+click the link)
 Your credentials are cached inside the persistent home volume — you won't be asked again.
 
 ## 5 — The `files` Folder
@@ -112,6 +112,7 @@ Use this as your workspace — projects, scripts, data files all go here.
 | `/init` | Setup codex for the project in /files |
 | `/resume` | Reopens a previous session. You'll see a list of past conversations — pick one and Codex reloads the full history so you can continue right where you left off. |
 | `/plan` | Begin a task with a plan |
+| `/status` | Shows your current API usage and rate limits. |
 
 That's it — you're up and running.
 
@@ -119,11 +120,21 @@ That's it — you're up and running.
 
 # Troubleshooting
 
+## Upgrading
+
+To pick up Dockerfile changes (new tools, updated plugins, etc.), run:
+
+```
+upgrade.bat
+```
+
+This removes the existing container and rebuilds the image from scratch with `--no-cache`. Your `/files` folder and `/root` home volume are **not** affected — only the container image is replaced. Run `codex.bat` afterwards to start fresh.
+
 ## Startup Failures
 
-If Codex fails to start, `codex.bat` will offer to run `docker-clean.bat` and retry automatically.
+If Codex fails to start, `codex.bat` will offer to run `docker-cleanup.bat` and retry automatically.
 
-You can also run `docker-clean.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
+You can also run `docker-cleanup.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
 
 > **Warning:** Cleanup will stop all running Codex containers and interrupt any active sessions.
 
@@ -135,11 +146,29 @@ Everything below is optional. Codex works fine without any of it.
 
 ---
 
+## Plugins
+
+The [Superpowers](https://github.com/obra/superpowers) plugin is installed automatically on first launch and updated via `git pull` on every subsequent start. It adds skills like brainstorming, systematic debugging, test-driven development, and code review workflows to Codex.
+
+The multi-agent feature flag is also enabled by default (`~/.codex/config.toml`), allowing Codex to spin up multiple parallel agents that work on different parts of a task simultaneously — significantly speeding up complex, multi-step work.
+
+No action needed — this is all handled by the entrypoint script.
+
+---
+
+## Web Server Access
+
+Ports `8080` (HTTP) and `4430` (HTTPS) are mapped from the container to your host. When Codex spins up a dev server or you ask it to serve a site, bind to `0.0.0.0` inside the container and access it from your browser at `http://localhost:8080` (or the port you configured in `.env`).
+
+This is useful for previewing websites, testing APIs, or running any web application Codex builds for you.
+
+---
+
 ## SSH Access
 
 An OpenSSH server starts automatically alongside Codex. This gives you a second way into the container — useful for running commands in parallel, editing files, or attaching to a tmux session while Codex is working.
 
-To enable it, uncomment the SSH port lines in `docker-compose.yaml`:
+To enable it, uncomment the SSH port lines in `docker/docker-compose.yaml`:
 
 ```yaml
 - "${SSH_PORT:-2222}:22"
