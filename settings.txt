@@ -1,6 +1,6 @@
 # Enable XRDP + Cinnamon desktop + Firefox browser (true/false)
 # When false, the container is headless — no GUI, desktop, or browser is installed.
-ENABLE_XRDP=true
+ENABLE_XRDP=false
 
 # Password for SSH / sudo access
 USER_PASSWORD=changeme

@@ -582,8 +582,8 @@ stdout_logfile_maxbytes=1MB
 stderr_logfile_maxbytes=1MB
 CONF
 
-RUN if [ "$ENABLE_XRDP" = "true" ]; then \
-        cat >> /etc/supervisor/conf.d/services.conf <<'CONFXRDP'
+# Stage the XRDP supervisor fragment unconditionally into a separate file
+RUN cat > /opt/supervisor-xrdp.conf <<'CONFXRDP'
 
 [program:dbus]
 command=/usr/bin/dbus-daemon --system --nofork
@@ -613,7 +613,9 @@ stderr_logfile=/var/log/xrdp.err
 stdout_logfile_maxbytes=1MB
 stderr_logfile_maxbytes=1MB
 CONFXRDP
-    fi
+
+# Append the XRDP supervisor fragment only when XRDP is enabled
+RUN if [ "$ENABLE_XRDP" = "true" ]; then cat /opt/supervisor-xrdp.conf >> /etc/supervisor/conf.d/services.conf; fi && rm -f /opt/supervisor-xrdp.conf
 
 # ---------- Entrypoint ----------
 RUN <<'EOF'
