@@ -27,13 +27,18 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-REM Derive project and container name from the folder this script lives in
-for %%I in ("%~dp0.") do set FOLDER_NAME=%%~nxI
-set CONTAINER_NAME=%FOLDER_NAME%
-set COMPOSE_PROJECT=%FOLDER_NAME%
+REM Derive a raw name from the folder this script lives in
+for %%I in ("%~dp0.") do set "FOLDER_NAME=%%~nxI"
 
-REM Derive unique ports from folder name hash (deterministic per folder)
-for /f %%A in ('powershell -Command "[math]::Abs('%FOLDER_NAME%'.GetHashCode()) %% 1000"') do set PORT_OFFSET=%%A
+REM Sanitize to a Docker-safe project/container name (lowercase, only [a-z0-9_-])
+REM Pass via environment to avoid batch quoting issues with spaces/punctuation
+set "RAW_NAME=%FOLDER_NAME%"
+for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "$n = $env:RAW_NAME.ToLower() -replace '[^a-z0-9_-]', '_' -replace '_+', '_' -replace '^_+|_+$', ''; if ($n -notmatch '^[a-z0-9]') { $n = 'c' + $n }; if (-not $n) { $n = 'codex' }; Write-Output $n"`) do set "SAFE_NAME=%%A"
+set "CONTAINER_NAME=%SAFE_NAME%"
+set "COMPOSE_PROJECT=%SAFE_NAME%"
+
+REM Derive unique ports from raw folder name hash (via env to avoid quoting issues)
+for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "[math]::Abs($env:RAW_NAME.GetHashCode()) %% 1000"`) do set "PORT_OFFSET=%%A"
 set /a HTTP_PORT=8000 + %PORT_OFFSET%
 set /a HTTPS_PORT=4400 + %PORT_OFFSET%
 set /a RDP_PORT=33000 + %PORT_OFFSET%
@@ -47,15 +52,16 @@ if exist "%~dp0settings.txt" (
     )
 )
 
+REM Title uses the sanitized name (no spaces/punctuation safety issues)
 if /i "%ENABLE_XRDP%"=="true" (
-    title %FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%
-    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
+    title %SAFE_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%
+    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%SAFE_NAME% - RDP: localhost:%RDP_PORT% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
 ) else (
-    title %FOLDER_NAME% - HTTP: http://localhost:%HTTP_PORT%
-    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%FOLDER_NAME% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
+    title %SAFE_NAME% - HTTP: http://localhost:%HTTP_PORT%
+    start /b cmd /c "powershell -NoProfile -Command while($true){[Console]::Title='%SAFE_NAME% - HTTP: http://localhost:%HTTP_PORT%';Start-Sleep 3}" > NUL 2>&1
 )
 
-echo Instance: %FOLDER_NAME%  (XRDP: %ENABLE_XRDP%)
+echo Instance: %SAFE_NAME%  (folder: "%FOLDER_NAME%", XRDP: %ENABLE_XRDP%)
 if /i "%ENABLE_XRDP%"=="true" (
     echo   HTTP: %HTTP_PORT%  HTTPS: %HTTPS_PORT%  RDP: %RDP_PORT%  SSH: %SSH_PORT%
 ) else (
@@ -65,19 +71,19 @@ echo.
 
 echo Updating and building...
 echo.
-docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml build --pull > NUL
+docker-compose -p "%COMPOSE_PROJECT%" -f docker/docker-compose.yaml build --pull > NUL
 echo.
 
 REM Check if the container already exists (running or stopped)
-docker container inspect %CONTAINER_NAME% > NUL 2>&1
+docker container inspect "%CONTAINER_NAME%" > NUL 2>&1
 if %errorlevel% equ 0 (
     echo Restarting existing container...
     echo.
-    docker start -ai %CONTAINER_NAME%
+    docker start -ai "%CONTAINER_NAME%"
 ) else (
     echo Creating new container...
     echo.
-    docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+    docker-compose -p "%COMPOSE_PROJECT%" -f docker/docker-compose.yaml run --service-ports --remove-orphans --name "%CONTAINER_NAME%" codex
 )
 if %errorlevel% equ 0 goto :eof
 
@@ -87,13 +93,13 @@ echo.
 set /p cleanup="Would you like to remove the container and retry? (Y/N): "
 if /i not "%cleanup%"=="Y" goto :eof
 
-docker rm -f %CONTAINER_NAME% > NUL 2>&1
+docker rm -f "%CONTAINER_NAME%" > NUL 2>&1
 call "%~dp0docker-cleanup.bat" -y
 echo.
 echo Retrying...
 echo.
-docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml build --pull > NUL
-docker-compose -p %COMPOSE_PROJECT% -f docker/docker-compose.yaml run --service-ports --remove-orphans --name %CONTAINER_NAME% codex
+docker-compose -p "%COMPOSE_PROJECT%" -f docker/docker-compose.yaml build --pull > NUL
+docker-compose -p "%COMPOSE_PROJECT%" -f docker/docker-compose.yaml run --service-ports --remove-orphans --name "%CONTAINER_NAME%" codex
 if %errorlevel% equ 0 goto :eof
 
 echo.
