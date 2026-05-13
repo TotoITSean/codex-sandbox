@@ -5,11 +5,9 @@
 # silently to the current console if wt.exe isn't installed or fails to launch.
 if (-not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
     try {
-        Start-Process -FilePath 'wt.exe' -ArgumentList @(
-            'new-tab', '--title', 'Codex',
-            'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-            '-File', $MyInvocation.MyCommand.Path
-        ) -ErrorAction Stop
+        $selfPath = $MyInvocation.MyCommand.Path
+        $wtArgs = "new-tab --title `"Codex`" powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
+        Start-Process -FilePath 'wt.exe' -ArgumentList $wtArgs -ErrorAction Stop
         exit
     } catch {
         # WT launch failed; fall through and run in the current console.
@@ -123,6 +121,9 @@ try {
         }
     }
     Log "ENABLE_XRDP=$EnableXrdp"
+
+    # Export so docker-compose's ${ENABLE_XRDP:-true} build arg substitution picks it up.
+    $env:ENABLE_XRDP = $EnableXrdp
 
     if ($EnableXrdp -ieq 'true') {
         $Title = "$SafeName - RDP: localhost:$RdpPort - HTTP: http://localhost:$HttpPort"

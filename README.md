@@ -6,6 +6,8 @@ A turnkey Docker setup for [OpenAI Codex CLI](https://github.com/openai/codex) �
 
 # Getting Started
 
+> **Upgrading from an older version?** Your Codex auth and sessions live in a Docker named volume from the old layout — they're safe but no longer mounted, so it'll look like you've been signed out. Before running Codex for the first time on the new layout, double-click **`Migrate Old Codex Settings.lnk`** to copy them into the new `container/persistent-codex-settings/` folder. See [Upgrading from an older version](#upgrading-from-an-older-version) for full details. Skip this if you're a new user.
+
 ## 0 — Enable Virtualization (one-time)
 
 Docker requires hardware virtualization. Most PCs have it but it's often **disabled by default** in the BIOS/UEFI. If Docker Desktop fails to start or complains about virtualization, you'll need to enable it.
@@ -112,9 +114,32 @@ That's it — you're up and running.
 
 ## Upgrading from an older version
 
-Old releases stored Codex's auth, sessions, and config in a Docker named volume called `codex-home`. After upgrading, that volume is no longer mounted, so it can look like everything has been wiped.
+Old releases stored Codex's auth, sessions, and config inside a Docker **named volume** that lived entirely inside Docker (no presence on your host filesystem). The new layout uses a regular folder on disk — `container/persistent-codex-settings/` — bind-mounted into the container. After upgrading, the old volume is still there but it's no longer mounted, so on first launch it can look like all your sign-ins and sessions have vanished.
 
-Double-click **`Migrate Old Codex Settings.lnk`** to fix this. It checks for the old volume and, if found, copies the `.codex` contents into the new local `container/persistent-codex-settings/` folder (overwriting any matches), then offers to remove the old volume. If the old volume doesn't exist, the script reports "Nothing to migrate" and exits — safe to run on a fresh install.
+To recover that data, double-click **`Migrate Old Codex Settings.lnk`** in the project root.
+
+### What the script does
+
+1. **Verifies Docker is installed and running.** If not, it tells you what to do and exits.
+2. **Finds the old volume.** Compose prefixes named volumes with the project name, so the actual volume is named `<project>_codex-home` (e.g. `codex_codex-home`). The script:
+   - First looks for a volume matching this project's folder name.
+   - If only one `*codex-home` volume exists on the system, uses it.
+   - If multiple exist (e.g. you've had several project checkouts), shows a numbered list and lets you pick.
+   - If none exist, reports **"Nothing to migrate"** and exits — safe to run on a clean install.
+3. **Previews the contents** of the old volume's `.codex` subdirectory using a temporary `alpine` container so you can confirm it has what you expect (`auth.json`, `config.toml`, session logs, etc.).
+4. **Asks for confirmation** before copying anything.
+5. **Copies** the `.codex` contents into `container/persistent-codex-settings/` with `cp -a` (preserves permissions and timestamps). Files with the same name as something already in the destination are **overwritten**; files that exist only in the destination are left alone.
+6. **Offers to delete the old volume** to reclaim disk space (typically a few hundred MB). You can decline and remove it later with `docker volume rm <name>`.
+
+### Safe to re-run
+
+Every step is idempotent — re-running won't make things worse. If you've already migrated and the old volume is gone, you'll just get the "Nothing to migrate" message.
+
+### When you don't need it
+
+- Fresh install — nothing to migrate.
+- You only ever ran the new layout — nothing to migrate.
+- You want to start from scratch — skip the migration; the new `container/persistent-codex-settings/` folder will be populated on first Codex login.
 
 ## Rebuilding from scratch
 

@@ -661,8 +661,8 @@ sudo -u user bash -c '
 # Restore /dev/console for codex
 umount /dev/console 2>/dev/null || true
 
-# Print RDP info on startup (only when XRDP enabled)
-if [ -f /etc/xrdp-enabled ]; then
+# Print RDP info on startup (only when XRDP enabled at build AND not disabled at runtime)
+if [ -f /etc/xrdp-enabled ] && [ "${ENABLE_XRDP:-true}" != "false" ]; then
   RDP_PORT="${RDP_HOST_PORT:-33890}"
   PASS="${USER_PASSWORD:-changeme}"
   if [ "$PASS" = "changeme" ]; then
