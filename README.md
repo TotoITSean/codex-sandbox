@@ -110,6 +110,12 @@ That's it — you're up and running.
 
 # Troubleshooting
 
+## Upgrading from an older version
+
+Old releases stored Codex's auth, sessions, and config in a Docker named volume called `codex-home`. After upgrading, that volume is no longer mounted, so it can look like everything has been wiped.
+
+Double-click **`Migrate Old Codex Settings.lnk`** to fix this. It checks for the old volume and, if found, copies the `.codex` contents into the new local `container/persistent-codex-settings/` folder (overwriting any matches), then offers to remove the old volume. If the old volume doesn't exist, the script reports "Nothing to migrate" and exits — safe to run on a fresh install.
+
 ## Rebuilding from scratch
 
 To pick up Dockerfile changes (new tools, updated plugins, etc.), force a clean rebuild from a PowerShell window opened in the project folder:
