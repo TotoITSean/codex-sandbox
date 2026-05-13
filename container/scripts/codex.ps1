@@ -154,6 +154,15 @@ try {
     # Check if the container already exists (running or stopped)
     & docker container inspect $ContainerName 2>$null 1>$null
     if ($LASTEXITCODE -eq 0) {
+        # Already running? Another window owns the I/O; trying to attach would hang.
+        $running = (& docker container inspect --format '{{.State.Running}}' $ContainerName 2>$null).Trim()
+        Log "container Running=$running"
+        if ($running -eq 'true') {
+            Write-Host ""
+            Write-Host "Codex is already running in another window." -ForegroundColor Yellow
+            Write-Host "Switch to that window to continue your session, or type /exit there before relaunching here." -ForegroundColor Yellow
+            return
+        }
         Write-Host "Restarting existing container..."
         Write-Host ""
         & docker start -ai $ContainerName
