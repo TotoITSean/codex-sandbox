@@ -2,4 +2,4 @@ Dockerfile* text eol=lf
 *.sh text eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
-settings.txt text eol=crlf
+Settings.txt text eol=crlf

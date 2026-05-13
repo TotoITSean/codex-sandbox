@@ -1,3 +1,6 @@
 .env
+*.log
 files/*
 !files/.gitkeep
+container/persistent-codex-settings/*
+!container/persistent-codex-settings/.gitkeep

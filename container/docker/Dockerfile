@@ -221,7 +221,7 @@ RUN groupadd -g $PGID user 2>/dev/null || groupmod -n user $(getent group $PGID 
     usermod -a -G sudo,audio,video user && \
     echo "user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/user/.profile && \
-    echo 'cd /files' >> /home/user/.bashrc && \
+    echo 'cd "/${FILES_MOUNT:-files}" 2>/dev/null || cd /' >> /home/user/.bashrc && \
     echo '[ -f /etc/container-title ] && PROMPT_COMMAND="printf \"\\033]0;\$(cat /etc/container-title)\\007\";$PROMPT_COMMAND"' >> /home/user/.bashrc
 
 # ---------- SSH ----------
@@ -530,22 +530,20 @@ git, python3, node/npm, dotnet (SDK 10), ffmpeg, imagemagick, playwright, tmux, 
 AGENTS
 fi
 
-# --- Enable multi-agent feature and trust /files ---
+# --- Enable multi-agent feature and trust the current mount ---
+MOUNT_PATH="/${FILES_MOUNT:-files}"
 if [ ! -f "$HOME/.codex/config.toml" ]; then
   cat > "$HOME/.codex/config.toml" <<'TOML'
 [features]
 multi_agent = true
-
-[projects."/files"]
-trust_level = "trusted"
 TOML
 else
   if ! grep -q 'multi_agent' "$HOME/.codex/config.toml"; then
     printf '\n[features]\nmulti_agent = true\n' >> "$HOME/.codex/config.toml"
   fi
-  if ! grep -q 'trust_level' "$HOME/.codex/config.toml"; then
-    printf '\n[projects."/files"]\ntrust_level = "trusted"\n' >> "$HOME/.codex/config.toml"
-  fi
+fi
+if ! grep -qF "[projects.\"$MOUNT_PATH\"]" "$HOME/.codex/config.toml"; then
+  printf '\n[projects."%s"]\ntrust_level = "trusted"\n' "$MOUNT_PATH" >> "$HOME/.codex/config.toml"
 fi
 
 
@@ -623,6 +621,9 @@ cat > /opt/codex-entrypoint.sh <<'ENTRY'
 #!/usr/bin/env bash
 set -e
 
+# Expose FILES_MOUNT to PAM-driven login shells (sudo -i, ssh) via /etc/environment
+echo "FILES_MOUNT=${FILES_MOUNT:-files}" > /etc/environment
+
 # All setup output to log file
 /usr/local/bin/setup-container.sh >/var/log/entrypoint.log 2>&1
 
@@ -675,7 +676,8 @@ if [ -f /etc/xrdp-enabled ]; then
 fi
 
 # Launch Codex in foreground as user
-exec sudo -u user -i bash -c "cd /files && exec codex --dangerously-bypass-approvals-and-sandbox $*"
+MOUNT_DIR="/${FILES_MOUNT:-files}"
+exec sudo -u user -i bash -c "cd \"$MOUNT_DIR\" && exec codex --dangerously-bypass-approvals-and-sandbox $*"
 ENTRY
 chmod +x /opt/codex-entrypoint.sh
 EOF

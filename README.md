@@ -34,31 +34,23 @@ It's usually under **Advanced**, **CPU Configuration**, **Security**, or **Tweak
 
 Already have Docker Desktop? Skip ahead.
 
-```
-install-docker.bat        # right-click → Run as administrator
-```
+Double-click **`Install Docker.lnk`** in the project folder. It will prompt for administrator access (UAC) and then install Docker Desktop via `winget`, falling back to a direct download if `winget` isn't available.
 
 Restart your machine after install, then launch **Docker Desktop** once so it finishes setup.
 
 ## 2 — Configure
 
-Copy the sample environment file to create your own:
-
-```
-copy docker\.env.sample docker\.env
-```
-
-Open `docker\.env` in any text editor. Here's what each setting does:
+Open **`Settings.txt`** in the project root with any text editor. Here's what each setting does:
 
 | Variable | Default | What it controls |
 |----------|---------|-----------------|
+| `ENABLE_XRDP` | `false` | Build the image with the XRDP + Cinnamon desktop + Firefox browser. When `false`, the container is headless. |
 | `USER_PASSWORD` | `changeme` | Password for SSH login and sudo inside the container. **Change this.** |
 | `TZ` | `America/Los_Angeles` | Container timezone — affects logs, file timestamps, and cron jobs. See common values below. |
 | `OPENAI_API_KEY` | *(empty)* | Your OpenAI API key. (optional) |
-| `OPENAI_OAUTH_TOKEN` | *(empty)* | Alternative auth via OAuth token (from `codex login`). Optionally use either this **or** the API key. Otherwise authentication is manual |
-| `HTTP_PORT` | `8080` | Host port mapped to the container's port 8080. |
-| `HTTPS_PORT` | `4430` | Host port mapped to the container's port 4430. |
-| `SSH_PORT` | `2222` | Host port for SSH access (mapped to container port 22). |
+| `OPENAI_OAUTH_TOKEN` | *(empty)* | Alternative auth via OAuth token (from `codex login`). Optionally use either this **or** the API key. Otherwise authentication is manual. |
+
+Host port mappings (HTTP, HTTPS, RDP, SSH) are derived automatically from your project folder name so multiple checkouts don't collide. The actual numbers in use are printed at the top of the console when the container starts.
 
 Common timezone values for *TZ*
 
@@ -76,13 +68,11 @@ Common timezone values for *TZ*
 
 ## 3 — Run
 
-```
-codex.bat
-```
+Double-click **`Codex.lnk`** in the project folder.
 
 > **Heads up:** The first build pulls and installs everything (.NET SDK, FFmpeg, ImageMagick, etc.). Expect it to take several minutes. Subsequent runs start in seconds.
 
-The container is **persistent** — when you exit Codex, the container stops but is not removed. The next time you run `codex.bat`, it restarts the same container with all your installed packages, shell history, and login credentials intact. Only the `/files` folder and `/root` home directory are preserved across full rebuilds (via Docker volumes).
+The container is **persistent** — when you exit Codex, the container stops but is not removed. Double-clicking `Codex.lnk` again restarts the same container with all your installed packages, shell history, and login credentials intact. Across full rebuilds, the host **`files/`** and **`container/persistent-codex-settings/`** folders are preserved (they're bind-mounted into the container at `/<your project folder name>` and `/home/user/.codex`).
 
 ## 4 — First-Time Login
 
@@ -96,11 +86,11 @@ On first launch Codex will prompt you to authenticate:
 ```
 
 **Choose option 2** (device code), open the link in a browser, log in to ChatGPT, and enter the code provided (you can ctrl+click the link)
-Your credentials are cached inside the persistent home volume — you won't be asked again.
+Your credentials are cached in the host `container/persistent-codex-settings/` folder (mapped to `~/.codex` inside the container) — you won't be asked again.
 
 ## 5 — The `files` Folder
 
-The `./files` directory on your machine is mapped directly into the container at `/files` (the default working directory). Anything you drop in there is immediately visible to Codex, and anything Codex creates lands right back on your host.
+The `./files` directory on your machine is mapped directly into the container at `/<your project folder name>`, which is also the default working directory. For example, if this repo is checked out at `C:\stuff\codex-test-1`, the host `files/` folder appears inside the container as `/codex-test-1`. Anything you drop in there is immediately visible to Codex, and anything Codex creates lands right back on your host.
 
 Use this as your workspace — projects, scripts, data files all go here.
 
@@ -109,7 +99,7 @@ Use this as your workspace — projects, scripts, data files all go here.
 | Command | What it does |
 |---------|-------------|
 | `/exit` | Cleanly ends the current session and stops the container. |
-| `/init` | Setup codex for the project in /files |
+| `/init` | Setup codex for the current project folder |
 | `/resume` | Reopens a previous session. You'll see a list of past conversations — pick one and Codex reloads the full history so you can continue right where you left off. |
 | `/plan` | Begin a task with a plan |
 | `/status` | Shows your current API usage and rate limits. |
@@ -120,21 +110,23 @@ That's it — you're up and running.
 
 # Troubleshooting
 
-## Upgrading
+## Rebuilding from scratch
 
-To pick up Dockerfile changes (new tools, updated plugins, etc.), run:
+To pick up Dockerfile changes (new tools, updated plugins, etc.), force a clean rebuild from a PowerShell window opened in the project folder:
 
 ```
-upgrade.bat
+docker compose -f container/docker/docker-compose.yaml build --pull --no-cache
 ```
 
-This removes the existing container and rebuilds the image from scratch with `--no-cache`. Your `/files` folder and `/root` home volume are **not** affected — only the container image is replaced. Run `codex.bat` afterwards to start fresh.
+This rebuilds the image with no cache. Your `files/` and `container/persistent-codex-settings/` folders are **not** affected — only the container image is replaced. Double-click `Codex.lnk` afterwards to start fresh.
 
-## Startup Failures
+## Startup failures
 
-If Codex fails to start, `codex.bat` will offer to run `docker-cleanup.bat` and retry automatically.
+If Codex fails to start, `Codex.lnk` will offer to run cleanup and retry automatically.
 
-You can also run `docker-cleanup.bat` directly at any time — it shuts down containers and prunes unused images to free up space.
+You can also double-click **`Docker Cleanup.lnk`** at any time — it shuts down containers and prunes unused images to free up space.
+
+> **About the shortcut windows:** They auto-close when their script finishes successfully and stay open with an error message if something went wrong. If a window stays open after double-clicking a shortcut, read the message and press any key to dismiss it.
 
 > **Warning:** Cleanup will stop all running Codex containers and interrupt any active sessions.
 
@@ -158,7 +150,7 @@ No action needed — this is all handled by the entrypoint script.
 
 ## Web Server Access
 
-Ports `8080` (HTTP) and `4430` (HTTPS) are mapped from the container to your host. When Codex spins up a dev server or you ask it to serve a site, bind to `0.0.0.0` inside the container and access it from your browser at `http://localhost:8080` (or the port you configured in `.env`).
+The container's HTTP (8080) and HTTPS (4430) ports are mapped to host ports that are auto-derived from your project folder name (printed in the console when the container starts). When Codex spins up a dev server or you ask it to serve a site, bind to `0.0.0.0` inside the container and access it from your browser at `http://localhost:<HTTP port>`.
 
 This is useful for previewing websites, testing APIs, or running any web application Codex builds for you.
 
@@ -168,20 +160,20 @@ This is useful for previewing websites, testing APIs, or running any web applica
 
 An OpenSSH server starts automatically alongside Codex. This gives you a second way into the container — useful for running commands in parallel, editing files, or attaching to a tmux session while Codex is working.
 
-To enable it, uncomment the SSH port lines in `docker/docker-compose.yaml`:
+To enable it, uncomment the SSH port lines in `container/docker/docker-compose.yaml`:
 
 ```yaml
 - "${SSH_PORT:-2222}:22"
 - "60000-60010:60000-60010/udp"
 ```
 
-Then connect:
+Then connect (substitute the actual SSH port shown in the Codex console):
 
 ```
-ssh root@localhost -p 2222
+ssh user@localhost -p <SSH port>
 ```
 
-The password is whatever you set as `USER_PASSWORD` in `.env` (default: `changeme`). The port is controlled by `SSH_PORT`.
+The password is whatever you set as `USER_PASSWORD` in `Settings.txt` (default: `changeme`).
 
 You also get [mosh](https://mosh.org/) support (UDP 60000–60010) for flaky or high-latency connections.
 
@@ -200,7 +192,7 @@ You also get [mosh](https://mosh.org/) support (UDP 60000–60010) for flaky or 
 SSH in and start a new tmux session:
 
 ```
-ssh root@localhost -p 2222
+ssh user@localhost -p <SSH port>
 tmux new -s work
 ```
 
@@ -222,7 +214,7 @@ You now have a persistent shell. Split it, create windows, do whatever you need 
 If your SSH drops or you detach, just reconnect and reattach:
 
 ```
-ssh root@localhost -p 2222
+ssh user@localhost -p <SSH port>
 tmux attach -t work
 ```
 

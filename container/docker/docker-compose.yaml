@@ -13,8 +13,9 @@ services:
     security_opt:
       - seccomp=unconfined
     volumes:
-      - ../files:/files
-      - codex-home:/home/user
+      - ../../files:/${FILES_MOUNT:-files}
+      - ../persistent-codex-settings:/home/user/.codex
+    working_dir: /${FILES_MOUNT:-files}
     ports:
       - "${HTTP_PORT:-8080}:8080"
       - "${HTTPS_PORT:-4430}:4430"
@@ -29,12 +30,10 @@ services:
       - OPENAI_OAUTH_TOKEN=${OPENAI_OAUTH_TOKEN:-}
       - RDP_HOST_PORT=${RDP_PORT:-33890}
       - HTTP_HOST_PORT=${HTTP_PORT:-8080}
-    env_file: ../settings.txt
+      - FILES_MOUNT=${FILES_MOUNT:-files}
+    env_file: ../../Settings.txt
     restart: unless-stopped
     logging:
       driver: "json-file"
       options:
         max-size: "50m"
-
-volumes:
-  codex-home:
