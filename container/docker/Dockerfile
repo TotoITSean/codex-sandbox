@@ -644,19 +644,37 @@ mount --bind /dev/null /dev/console 2>/dev/null || true
 # Start supervisord fully detached from this tty using setsid
 setsid /usr/bin/supervisord -c /etc/supervisor/supervisord.conf </dev/null >/dev/null 2>/dev/null &
 
-# Update Codex CLI and ralph-wiggum to latest
-npm update -g @openai/codex @th0rgal/ralph-wiggum >/dev/null 2>&1 || true
+# Update Codex CLI and ralph-wiggum to latest (verbose, but tolerant of network issues)
+echo "Updating Codex CLI..."
+if npm update -g @openai/codex @th0rgal/ralph-wiggum 2>&1 | tail -5; then
+  echo "  Codex CLI up to date."
+else
+  echo "  WARNING: Codex CLI update failed (check network). Continuing with installed version."
+fi
+echo ""
 
 # Install or update superpowers plugin as user
-sudo -u user bash -c '
-  if [ -d "$HOME/.codex/superpowers/.git" ]; then
-    (cd "$HOME/.codex/superpowers" && git pull) 2>/dev/null || true
+echo "Updating Superpowers plugin..."
+if sudo -u user bash -c '
+  set -e
+  SP_DIR="/home/user/.codex/superpowers"
+  if [ -d "$SP_DIR/.git" ]; then
+    git -C "$SP_DIR" pull --quiet --ff-only
+    echo "  Superpowers updated."
   else
-    git clone https://github.com/obra/superpowers.git "$HOME/.codex/superpowers" 2>/dev/null || true
+    rm -rf "$SP_DIR"
+    git clone --quiet --depth 1 https://github.com/obra/superpowers.git "$SP_DIR"
+    echo "  Superpowers installed."
   fi
-  mkdir -p "$HOME/.agents/skills"
-  ln -sfn "$HOME/.codex/superpowers/skills" "$HOME/.agents/skills/superpowers"
-' >/dev/null 2>&1 || true
+  mkdir -p /home/user/.agents/skills
+  ln -sfn "$SP_DIR/skills" /home/user/.agents/skills/superpowers
+'; then
+  : # success messages already printed inside
+else
+  echo "  WARNING: Superpowers install/update failed. Codex will start without the plugin."
+  echo "  Re-run the container with a working network connection to pick it up next time."
+fi
+echo ""
 
 # Restore /dev/console for codex
 umount /dev/console 2>/dev/null || true
