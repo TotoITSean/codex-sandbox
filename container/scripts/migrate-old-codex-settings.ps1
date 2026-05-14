@@ -52,13 +52,26 @@ try {
     # Docker available?
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Host "Docker is not installed." -ForegroundColor Yellow
-        Write-Host "Install Docker Desktop first (use Install Docker.lnk), then run this again."
+        Write-Host "Install Docker Desktop first (use 'Install Docker.cmd' in the project root), then run this again."
         return
     }
+    # If Docker isn't running, start it and wait
     & docker info 2>$null 1>$null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Docker is not running. Start Docker Desktop first, then run this again." -ForegroundColor Yellow
-        return
+        Write-Host "Docker Desktop is not running. Starting it..."
+        $dd = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
+        if (Test-Path -LiteralPath $dd) {
+            Start-Process -FilePath $dd
+        } else {
+            Write-Host "Docker Desktop not found at $dd - please start it manually." -ForegroundColor Yellow
+        }
+        Write-Host "Waiting for Docker to start..."
+        do {
+            Start-Sleep -Seconds 3
+            & docker info 2>$null 1>$null
+        } while ($LASTEXITCODE -ne 0)
+        Write-Host "Docker is ready."
+        Write-Host ""
     }
 
     # Discover candidate volumes. Compose prefixes named volumes with the project
