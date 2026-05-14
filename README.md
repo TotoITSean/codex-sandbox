@@ -171,11 +171,17 @@ Everything below is optional. Codex works fine without any of it.
 
 ## Plugins
 
-The [Superpowers](https://github.com/obra/superpowers) plugin is installed automatically on first launch and updated via `git pull` on every subsequent start. It adds skills like brainstorming, systematic debugging, test-driven development, and code review workflows to Codex.
+Codex ships with a bundled plugin marketplace that's synced automatically (visible at `~/.codex/.tmp/plugins/` inside the container). To install a plugin:
 
-The multi-agent feature flag is also enabled by default (`~/.codex/config.toml`), allowing Codex to spin up multiple parallel agents that work on different parts of a task simultaneously — significantly speeding up complex, multi-step work.
+1. Inside Codex, type `/plugins`.
+2. Search for the plugin you want (e.g. `superpowers`).
+3. Select **Install Plugin**.
 
-No action needed — this is all handled by the entrypoint script.
+Once installed, plugins persist across container restarts and rebuilds via the `container/persistent-codex-settings/` bind mount.
+
+**Recommended:** [Superpowers](https://github.com/obra/superpowers) adds skills like brainstorming, systematic debugging, test-driven development, and code-review workflows — it's already in the bundled marketplace, so just `/plugins` → search `superpowers` → install.
+
+The multi-agent feature flag is enabled by default (`~/.codex/config.toml`), allowing Codex to spin up multiple parallel agents that work on different parts of a task simultaneously — no action needed.
 
 ---
 

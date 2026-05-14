@@ -653,27 +653,35 @@ else
 fi
 echo ""
 
-# Install or update superpowers plugin as user
-echo "Updating Superpowers plugin..."
-if sudo -u user bash -c '
-  set -e
-  SP_DIR="/home/user/.codex/superpowers"
-  if [ -d "$SP_DIR/.git" ]; then
-    git -C "$SP_DIR" pull --quiet --ff-only
-    echo "  Superpowers updated."
-  else
-    rm -rf "$SP_DIR"
-    git clone --quiet --depth 1 https://github.com/obra/superpowers.git "$SP_DIR"
-    echo "  Superpowers installed."
+# Clean up the legacy ~/.codex/superpowers clone (pre-plugin-system layout that
+# modern Codex doesn't recognize). Codex now bundles its own plugin marketplace
+# under ~/.codex/.tmp/plugins/; plugins are enabled by writing a stanza into
+# ~/.codex/config.toml. The /plugins TUI does the same thing under the hood.
+sudo -u user bash -c '
+  LEGACY="/home/user/.codex/superpowers"
+  if [ -d "$LEGACY/.git" ]; then
+    rm -rf "$LEGACY" "/home/user/.agents/skills/superpowers" 2>/dev/null
   fi
-  mkdir -p /home/user/.agents/skills
-  ln -sfn "$SP_DIR/skills" /home/user/.agents/skills/superpowers
-'; then
-  : # success messages already printed inside
-else
-  echo "  WARNING: Superpowers install/update failed. Codex will start without the plugin."
-  echo "  Re-run the container with a working network connection to pick it up next time."
-fi
+' 2>/dev/null || true
+
+# Auto-enable Superpowers plugin if not already configured. Idempotent: only
+# appends if no [plugins."superpowers@openai-curated"] section is present, so
+# user disablement via /plugins is respected.
+echo "Ensuring Superpowers plugin is enabled..."
+sudo -u user bash -c '
+  CONFIG="/home/user/.codex/config.toml"
+  if [ ! -f "$CONFIG" ]; then
+    echo "  config.toml not yet present; skipping (it will exist on next start)."
+    exit 0
+  fi
+  if grep -qF "[plugins.\"superpowers@openai-curated\"]" "$CONFIG"; then
+    echo "  Superpowers already configured."
+  else
+    printf "\n[plugins.\"superpowers@openai-curated\"]\nenabled = true\n" >> "$CONFIG"
+    echo "  Superpowers enabled (added to config.toml)."
+  fi
+'
+echo "Manage other plugins with /plugins inside Codex."
 echo ""
 
 # Restore /dev/console for codex
