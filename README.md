@@ -6,7 +6,9 @@ A turnkey Docker setup for [OpenAI Codex CLI](https://github.com/openai/codex) �
 
 # Getting Started
 
-> **Upgrading from an older version?** Your Codex auth and sessions live in a Docker named volume from the old layout — they're safe but no longer mounted, so it'll look like you've been signed out. Before running Codex for the first time on the new layout, double-click **`Migrate Old Codex Settings.lnk`** to copy them into the new `container/persistent-codex-settings/` folder. See [Upgrading from an older version](#upgrading-from-an-older-version) for full details. Skip this if you're a new user.
+> **Upgrading from an older version?** Your Codex auth and sessions live in a Docker named volume from the old layout — they're safe but no longer mounted, so it'll look like you've been signed out. Before running Codex for the first time on the new layout, double-click **`Migrate Old Codex Settings.cmd`** to copy them into the new `container/persistent-codex-settings/` folder. See [Upgrading from an older version](#upgrading-from-an-older-version) for full details. Skip this if you're a new user.
+
+> **If a `.cmd` file refuses to run** with a SmartScreen or Defender warning, the files may have been flagged because they came from a downloaded zip. Open a PowerShell window in the project folder and run `Get-ChildItem *.cmd \| Unblock-File` once; future double-clicks will work normally.
 
 ## 0 — Enable Virtualization (one-time)
 
@@ -36,7 +38,7 @@ It's usually under **Advanced**, **CPU Configuration**, **Security**, or **Tweak
 
 Already have Docker Desktop? Skip ahead.
 
-Double-click **`Install Docker.lnk`** in the project folder. It will prompt for administrator access (UAC) and then install Docker Desktop via `winget`, falling back to a direct download if `winget` isn't available.
+Double-click **`Install Docker.cmd`** in the project folder. It will prompt for administrator access (UAC) and then install Docker Desktop via `winget`, falling back to a direct download if `winget` isn't available.
 
 Restart your machine after install, then launch **Docker Desktop** once so it finishes setup.
 
@@ -71,11 +73,11 @@ Common timezone values for *TZ*
 
 ## 3 — Run
 
-Double-click **`Codex.lnk`** in the project folder.
+Double-click **`Codex.cmd`** in the project folder.
 
 > **Heads up:** The first build pulls and installs everything (.NET SDK, FFmpeg, ImageMagick, etc.). Expect it to take several minutes. Subsequent runs start in seconds.
 
-The container is **persistent** — when you exit Codex, the container stops but is not removed. Double-clicking `Codex.lnk` again restarts the same container with all your installed packages, shell history, and login credentials intact. Across full rebuilds, the host **`files/`** and **`container/persistent-codex-settings/`** folders are preserved (they're bind-mounted into the container at `/<your project folder name>` and `/home/user/.codex`).
+The container is **persistent** — when you exit Codex, the container stops but is not removed. Double-clicking `Codex.cmd` again restarts the same container with all your installed packages, shell history, and login credentials intact. Across full rebuilds, the host **`files/`** and **`container/persistent-codex-settings/`** folders are preserved (they're bind-mounted into the container at `/<your project folder name>` and `/home/user/.codex`).
 
 ## 4 — First-Time Login
 
@@ -117,7 +119,7 @@ That's it — you're up and running.
 
 Old releases stored Codex's auth, sessions, and config inside a Docker **named volume** that lived entirely inside Docker (no presence on your host filesystem). The new layout uses a regular folder on disk — `container/persistent-codex-settings/` — bind-mounted into the container. After upgrading, the old volume is still there but it's no longer mounted, so on first launch it can look like all your sign-ins and sessions have vanished.
 
-To recover that data, double-click **`Migrate Old Codex Settings.lnk`** in the project root.
+To recover that data, double-click **`Migrate Old Codex Settings.cmd`** in the project root.
 
 ### What the script does
 
@@ -150,13 +152,13 @@ To pick up Dockerfile changes (new tools, updated plugins, etc.), force a clean 
 docker compose -f container/docker/docker-compose.yaml build --pull --no-cache
 ```
 
-This rebuilds the image with no cache. Your `files/` and `container/persistent-codex-settings/` folders are **not** affected — only the container image is replaced. Double-click `Codex.lnk` afterwards to start fresh.
+This rebuilds the image with no cache. Your `files/` and `container/persistent-codex-settings/` folders are **not** affected — only the container image is replaced. Double-click `Codex.cmd` afterwards to start fresh.
 
 ## Startup failures
 
-If Codex fails to start, `Codex.lnk` will offer to run cleanup and retry automatically.
+If Codex fails to start, `Codex.cmd` will offer to run cleanup and retry automatically.
 
-You can also double-click **`Docker Cleanup.lnk`** at any time — it shuts down containers and prunes unused images to free up space.
+You can also double-click **`Docker Cleanup.cmd`** at any time — it shuts down containers and prunes unused images to free up space.
 
 > **About the shortcut windows:** They auto-close when their script finishes successfully and stay open with an error message if something went wrong. If a window stays open after double-clicking a shortcut, read the message and press any key to dismiss it.
 
