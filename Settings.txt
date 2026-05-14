@@ -13,3 +13,8 @@ OPENAI_API_KEY=
 
 # OpenAI OAuth token for Codex login (e.g. from `codex login`)
 OPENAI_OAUTH_TOKEN=
+
+# Launch the shortcuts in Windows Terminal when available (true/false).
+# Windows Terminal has proper Ctrl+C / Ctrl+V copy-paste; the legacy
+# console host doesn't. Set to false to stay in conhost / cmd.
+USE_WINDOWS_TERMINAL=true

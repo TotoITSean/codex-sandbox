@@ -1,9 +1,26 @@
 #Requires -Version 5.1
 
+$ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ContainerDir = Split-Path -Parent $ScriptDir
+$ProjectDir   = Split-Path -Parent $ContainerDir
+$LogFile      = Join-Path $ScriptDir 'codex-last-run.log'
+
+# Read USE_WINDOWS_TERMINAL from Settings.txt (default: true).
+$UseWindowsTerminal = $true
+$SettingsFile = Join-Path $ProjectDir 'Settings.txt'
+if (Test-Path -LiteralPath $SettingsFile) {
+    foreach ($line in Get-Content -LiteralPath $SettingsFile) {
+        if ($line -match '^\s*USE_WINDOWS_TERMINAL\s*=\s*([^\s#]+)') {
+            $UseWindowsTerminal = ($Matches[1] -ieq 'true')
+        }
+    }
+}
+
 # If we're in the legacy console host and Windows Terminal is available,
 # re-launch into WT for proper Ctrl+C / Ctrl+V copy-paste. Falls back
 # silently to the current console if wt.exe isn't installed or fails to launch.
-if (-not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
+# Skipped entirely when USE_WINDOWS_TERMINAL=false in Settings.txt.
+if ($UseWindowsTerminal -and -not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
     try {
         $selfPath = $MyInvocation.MyCommand.Path
         $wtArgs = "new-tab --title `"Codex`" powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
@@ -13,11 +30,6 @@ if (-not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.
         # WT launch failed; fall through and run in the current console.
     }
 }
-
-$ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ContainerDir = Split-Path -Parent $ScriptDir
-$ProjectDir   = Split-Path -Parent $ContainerDir
-$LogFile      = Join-Path $ScriptDir 'codex-last-run.log'
 
 # Set to $true on clean exit paths so the window closes; left $false
 # (the default) for errors so the user can read what went wrong.

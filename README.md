@@ -51,6 +51,7 @@ Open **`Settings.txt`** in the project root with any text editor. Here's what ea
 | `TZ` | `America/Los_Angeles` | Container timezone — affects logs, file timestamps, and cron jobs. See common values below. |
 | `OPENAI_API_KEY` | *(empty)* | Your OpenAI API key. (optional) |
 | `OPENAI_OAUTH_TOKEN` | *(empty)* | Alternative auth via OAuth token (from `codex login`). Optionally use either this **or** the API key. Otherwise authentication is manual. |
+| `USE_WINDOWS_TERMINAL` | `true` | Re-launch the shortcuts in Windows Terminal when available (better Ctrl+C/Ctrl+V than the legacy console host). Set to `false` to stay in `conhost.exe`. Falls back silently if `wt.exe` isn't installed. |
 
 Host port mappings (HTTP, HTTPS, RDP, SSH) are derived automatically from your project folder name so multiple checkouts don't collide. The actual numbers in use are printed at the top of the console when the container starts.
 

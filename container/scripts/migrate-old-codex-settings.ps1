@@ -1,7 +1,20 @@
 #Requires -Version 5.1
 
+# Read USE_WINDOWS_TERMINAL from Settings.txt (default: true).
+$UseWindowsTerminal = $true
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+$SettingsFile = Join-Path $ProjectRoot 'Settings.txt'
+if (Test-Path -LiteralPath $SettingsFile) {
+    foreach ($line in Get-Content -LiteralPath $SettingsFile) {
+        if ($line -match '^\s*USE_WINDOWS_TERMINAL\s*=\s*([^\s#]+)') {
+            $UseWindowsTerminal = ($Matches[1] -ieq 'true')
+        }
+    }
+}
+
 # Re-launch in Windows Terminal if available (better copy/paste).
-if (-not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
+# Skipped when USE_WINDOWS_TERMINAL=false in Settings.txt.
+if ($UseWindowsTerminal -and -not $env:WT_SESSION -and $Host.Name -eq 'ConsoleHost' -and (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
     try {
         $selfPath = $MyInvocation.MyCommand.Path
         $wtArgs = "new-tab --title `"Migrate Codex Settings`" powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$selfPath`""
