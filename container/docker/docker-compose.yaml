@@ -15,6 +15,13 @@ services:
     volumes:
       - ../../files:/${FILES_MOUNT:-files}
       - ../persistent-codex-settings:/home/user/.codex
+      # Hot, machine-only dirs on native ext4 (not the slow Windows 9p bind mount).
+      # The bundled plugin marketplace under .tmp is ~39MB of tiny files that Codex
+      # walks on every startup/sub-agent spawn; over 9p that alone added ~80s/prompt.
+      # Sessions are intentionally left on the host bind mount above for portable,
+      # outside-Docker persistence (append-only, so the 9p cost is negligible).
+      - codex-tmp:/home/user/.codex/.tmp
+      - codex-cache:/home/user/.codex/cache
     working_dir: /${FILES_MOUNT:-files}
     ports:
       - "${HTTP_PORT:-8080}:8080"
@@ -37,3 +44,7 @@ services:
       driver: "json-file"
       options:
         max-size: "50m"
+
+volumes:
+  codex-tmp:
+  codex-cache:
